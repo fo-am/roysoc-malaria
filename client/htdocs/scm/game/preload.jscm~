@@ -1,0 +1,16 @@
+;; -*- mode: scheme; -*-
+;; Planet Fluxus Copyright (C) 2013 Dave Griffiths
+
+(load-texture "white.png")
+(load-texture "extinct.png")
+(load-texture "host-extinct.png")
+(load-texture "host-circle3.png")
+(load-texture "host-triangle3.png")
+(load-texture "host-square3.png")
+(load-texture "host-donut3.png")
+
+(define (wait)
+  (when (not (textures-loaded?))
+     (wait)))
+
+(wait)

@@ -1,0 +1,70 @@
+@import url('https://fonts.googleapis.com/css?family=Barrio|Comfortaa|Josefin+Sans');
+
+@font-face {
+    font-family: 'Dosis';
+    src: url('../fonts/Dosis-Regular.ttf');
+}
+
+body {
+    /*font-family: 'Josefin Sans', sans-serif;*/
+    font-family: 'Comfortaa', cursive;
+    font-size: 150%;
+    padding: 0;
+    margin: 0;
+}
+
+h1 {
+    font-family: 'Barrio', cursive;
+    font-size: 400%;
+}
+
+input {
+    width: 12em;
+}
+
+.image-button {
+    text-align: center;
+    padding-bottom: 1em;
+}
+
+.code-container {
+    position: absolute;
+    left: 0px;
+    top: 1.2em;
+//    font-family: 'deja'; important;
+    font-size: 100%;
+    border: 0;
+    color: #000;
+    background-color: transparent;
+    z-index: 999;
+    width: 100%;
+}
+
+#webgl-canvas { }
+
+#canvas {
+    position: absolute;
+    left: 0px;
+    top: 0px;
+    width: 100vw;
+    height: 100vh;
+}
+
+input {
+    width: 3em;
+}
+
+.zoomed-canvas {
+    width:100%; 
+    height:auto; 
+    position:fixed; 
+    left:0; 
+    top:0; 
+    z-index:-100; 
+}
+
+input[type=number]::-webkit-inner-spin-button, 
+input[type=number]::-webkit-outer-spin-button { 
+  -webkit-appearance: none; 
+  margin: 0; 
+}

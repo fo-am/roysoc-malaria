@@ -1,0 +1,79 @@
+;; -*- mode: scheme; -*-
+;; Royal Soc Malaria Copyright (C) 2018 FoAM Kernow
+
+(load "scm/game/canvas.jscm")
+
+(define receptor-create-distance 5)
+(define receptor-types (list "A" "B" "C" "D"))
+(define receptor-a-col (vector 1 0 0))
+(define receptor-b-col (vector 0 1 0))
+(define receptor-c-col (vector 0 0 1))
+(define receptor-d-col (vector 1 1 0))
+
+(define parasite-num-receptors 5)
+(define parasite-col (vector 1 0.5 0.2))
+
+;; posisiton is relative to parasite
+(define (make-receptor type pos parasite-id) 
+  (list type pos parasite-id))
+
+;; don't need root, just parent and forget...
+(define (receptor-type r) (list-ref r 0))
+(define (receptor-pos r) (list-ref r 1))
+(define (receptor-parasite-id r) (list-ref r 2))
+
+(define (build-receptor type pid)
+  (let ((pos (vmul (crndvec) receptor-create-distance)))
+    ;; parenting and forgetting - will be deleted when
+    ;; parent is destroyed
+    (with-state
+     (cond 
+      ((eq? type "A") (colour receptor-a-col))
+      ((eq? type "B") (colour receptor-b-col))
+      ((eq? type "C") (colour receptor-c-col))
+      (else (colour receptor-d-col)))
+     (parent pid)
+     (translate pos)
+     (scale (vector 0.25 0.25 0.25))
+     (build-cube))
+    (make-receptor type pos pid)))
+  
+(define (build-receptors n magic pid)
+  (cons
+   (build-receptor magic pid)
+   (build-list
+    (- n 1)
+    (lambda (_) (build-receptor (choose receptor-types) pid)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define (make-parasite id pos age receptors root)
+	(list id pos age receptors root))
+
+(define (parasite-id p) (list-ref p 0))
+(define (parasite-pos p) (list-ref p 1))
+(define (parasite-age p) (list-ref p 2))
+(define (parasite-receptors p) (list-ref p 3))
+(define (parasite-root p) (list-ref p 4))
+
+;; lazily reuse primitive ids as parasite ids
+(define (build-parasite pos magic)
+  (let ((pid (with-state
+	      (colour parasite-col)
+	      (translate pos)
+	      (msg pos)
+	      (build-cube))))
+    (make-parasite
+     pid pos 0
+     (build-receptors parasite-num-receptors magic pid)
+     pid)))
+
+;;(define p (build-cube))
+
+(define p (build-parasite (vector 0 0 0) "A"))
+
+;;(clear-colour (vector 0.0 0.0 0.0))
+(resize-glcanvas webgl-canvas)
+
+(every-frame
+	(with-primitive (parasite-root p) (rotate (vector 1 2 3))))

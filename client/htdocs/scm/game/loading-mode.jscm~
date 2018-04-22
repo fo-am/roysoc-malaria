@@ -1,0 +1,6 @@
+;; -*- mode: scheme; -*-
+;; Viruscraft Copyright (C) 2018 FoAM Kernow
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define (loading-mode-update g)

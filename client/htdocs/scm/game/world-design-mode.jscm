@@ -1,0 +1,100 @@
+;; -*- mode: scheme; -*-
+;; Viruscraft Copyright (C) 2018 FoAM Kernow
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define title-text '())
+(define sealevel-text '())
+(define next-button '())
+(define last-button '())
+(define tl-window '())
+(define tr-window '())
+(define bl-window '())
+(define br-window '())
+
+(define (init-world-design-mode)
+  (when (not world-units)
+	(set! world-units (build-world-from-params 20)))
+
+  (set-canvas-drag-fn
+   (lambda ()
+     (let ((drag (vector (- canvas-drag-x) canvas-drag-y 0)))
+       (when (not (veq? drag (vector 0 0 0)))
+	     (let ((rot-axis (vcross drag (vector 0 0 -1))))
+	       (set! world-q (qmul world-q (qaxisangle (vnormalise rot-axis) 2))))))))
+
+  (set! title-text 
+	(make-textbox 
+	 (/ screen-width 2) 70
+	 "50pt Dosis" 30 "centre"
+	 (list "Build your world")))
+
+  (set! sealevel-text 
+	(make-textbox 
+	 100 150
+	 "30pt Dosis" 30 "centre"
+	 (list "Sea level")))
+  
+  (set! next-button 
+	(make-image-button 
+	 (+ (/ screen-width 2) 100) 600 "hexbutton.png"
+	 "Done" 
+	 (lambda (m)
+	   (world-design-mode-modify-ready m "next"))))
+  
+  (set! last-button 
+	(make-image-button 
+	 (- (/ screen-width 2) 100) 600 "hexbutton.png"
+	 "Back" 
+	 (lambda (m)
+	   (world-design-mode-modify-ready m "back"))))
+  
+  (set! tl-window (make-window 10 80 400 270))
+  (set! tr-window (make-window (- screen-width 410) 80 400 270))
+  (set! bl-window (make-window 10 380 400 270))
+  (set! br-window (make-window (- screen-width 410) 380 400 270))
+
+  (list #f))
+
+(define (world-design-mode-ready m) (list-ref m 0))
+(define (world-design-mode-modify-ready m v) (list-replace m 0 v))
+
+(define (world-design-mode-update m)
+  (set! sealevel-slider (slider-update sealevel-slider))
+  (image-button-update
+   next-button
+   (image-button-update last-button m)))
+
+(define (world-design-mode-render m)
+  (with-primitive 
+   world-root 
+   (identity)
+   (translate (vector 0 0 0))
+   (let ((s (+ (min (max 0.02 (* canvas-mouse-zoom 0.02)) 2) 0.7)))
+     (scale (vmul (vector s s s) 0.80)))
+   (concat (q->m world-q))))
+
+(define last-v 0)
+
+(define sealevel-slider 
+  (make-slider 50 280 300 (- 300 90)
+	       (lambda (v)
+		 (when (not (eq? v last-v))
+		       (set! last-v v)
+		       (destroy world-root)
+		       (set! world-units (build-world-from-params (- 100 (/ v 3)))))
+		 )))
+
+
+(define (world-design-mode-canvas-render m)
+  (window-render! tl-window)
+  (window-render! tr-window)
+  (window-render! bl-window)
+  (window-render! br-window)
+  
+  (textbox-render! title-text)
+  (textbox-render! sealevel-text)
+  (set! sealevel-slider (slider-update sealevel-slider))
+  (slider-render! sealevel-slider)
+  (image-button-render! next-button)
+  (image-button-render! last-button))

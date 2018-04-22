@@ -1,0 +1,273 @@
+;; -*- mode: scheme; -*-
+;; Viruscraft Copyright (C) 2017 FoAM Kernow
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; virus builder
+
+(define receptor-col (vector 0.82 0.76 0.65))
+(define virus-col (vector 0.6 0.39 0.2))
+
+(define rad-conv 0.017453292)
+
+(define receptor-rotations
+  (append
+   (build-list 
+    5
+    (lambda (i)
+      (let ((a (* rad-conv (* i (/ 360 5)))))
+       (qaxisangle (vector (sin a) 0 (cos a)) 36))))
+   (build-list 
+    5
+    (lambda (i)
+      (let ((a (* rad-conv (* i (/ 360 5)))))
+       (qaxisangle (vector (sin a) 0 (cos a)) 82))))
+   (build-list 
+    5
+    (lambda (i)
+      (let ((a (* rad-conv (+ 36 (* i (/ 360 5))))))
+       (qaxisangle (vector (sin a) 0 (cos a)) 100))))
+   (build-list 
+    5
+    (lambda (i)
+      (let ((a (* rad-conv (+ 36 (* i (/ 360 5))))))
+       (qaxisangle (vector (sin a) 0 (cos a)) 144))))))
+
+;; almost makes sense - mapping from obj exported faces
+;; to rotation order calculated above
+(define faceid->rotation (list 16 17 15 19 18
+			       12 11 10 14 13
+			        7  6  5  9  8
+			        2  1  0  4  3))
+
+(define builder-pos (vector -9.5 1 0))
+
+(define virus-builder #f)
+(define receptor-circle #f)
+(define receptor-triangle #f)
+(define receptor-square #f)
+(define receptor-donut #f)
+(define receptor-angle #f)
+(define receptor-tee #f)
+(define receptor-guitar #f)
+(define receptor-clear #f)
+
+(define receptor-ids (build-list 20 (lambda (i) 0)))
+(define cur-receptor-types (build-list 20 (lambda (i) #f)))
+
+(define world-q (qaxisangle (vector 0 0 1) 0))
+(define virus-q (qaxisangle (vector 0 0 1) 0))
+
+(define virus-recep-id 1)
+
+(define (attach-virus instance type)
+  (when (not (zero? (list-ref receptor-ids virus-recep-id)))
+	(destroy (list-ref receptor-ids virus-recep-id)))
+  (set! cur-receptor-types (list-replace cur-receptor-types virus-recep-id type))
+  (set! receptor-ids
+	(list-replace 
+	 receptor-ids virus-recep-id
+	 (with-state
+	  (shader-assign-compiled "virus")	
+	  (parent virus-builder)
+	  (concat (minverse (q->m (list-ref receptor-rotations 
+					    (list-ref faceid->rotation virus-recep-id)))))
+	  (translate (vector 0 1.1 0))
+	  (scale (vector 0.1 0.1 0.1))
+	  (colour receptor-col)
+	  (build-instance instance)))))
+
+(define (clear-virus)
+  (set! virus (make-virus '())))
+
+(define (update-virus)
+  (set! virus (make-virus 
+	       (foldl 
+		(lambda (type r) 
+		  (if type (cons type r) r))
+		'()
+		cur-receptor-types))))
+
+(define (attach-virus-circle) (attach-virus receptor-circle 'circle) (update-virus))
+(define (attach-virus-triangle) (attach-virus receptor-triangle 'triangle) (update-virus))
+(define (attach-virus-square) (attach-virus receptor-square 'square) (update-virus))
+(define (attach-virus-donut) (attach-virus receptor-donut 'donut) (update-virus))
+(define (attach-virus-tee) (attach-virus receptor-tee 'tee) (update-virus))
+(define (attach-virus-angle) (attach-virus receptor-angle 'angle) (update-virus))
+(define (attach-virus-guitar) (attach-virus receptor-guitar 'guitar) (update-virus))
+
+(define (attach-virus-clear)
+  (when (not (zero? (list-ref receptor-ids virus-recep-id)))
+	(destroy (list-ref receptor-ids virus-recep-id)))
+  (set! receptor-ids
+	(list-replace receptor-ids virus-recep-id 0)) 
+  (set! cur-receptor-types
+	(list-replace cur-receptor-types virus-recep-id #f))
+  (update-virus))
+
+(define (attach-virus-clear-all)
+  (for-each (lambda (receptor) (destroy receptor)) receptor-ids)
+  (set! receptor-ids '())
+  (set! cur-receptor-types (build-list 20 (lambda (i) #f)))
+  (update-virus))  
+
+;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define num-buttons 8)
+
+(define button-objs (list
+		     "models/receptor-triangle.obj"
+		     "models/receptor-circle.obj"
+		     "models/receptor-square.obj"
+		     "models/receptor-donut.obj"
+		     "models/receptor-tee.obj"
+		     "models/receptor-angle.obj"
+		     "models/receptor-clear.obj"
+		     "models/receptor-guitar.obj"))
+
+(define button-fns 
+  (list 
+   (lambda () (attach-virus-triangle))
+   (lambda () (attach-virus-circle))
+   (lambda () (attach-virus-square))
+   (lambda () (attach-virus-donut))
+   (lambda () (attach-virus-tee))
+   (lambda () (attach-virus-angle))
+   (lambda () (attach-virus-clear))
+   (lambda () (attach-virus-guitar))))
+
+(define (make-button prim fn) (list prim fn))
+(define (button-prim b) (list-ref b 0))
+(define (button-fn b) (list-ref b 1))
+
+(define buttons '())
+(define face-display #f)
+
+(define knobble-vec (vnormalise (vector 0 1 1)))
+
+(define (display-front-face)
+  (define (_ n closest r)
+    (cond
+     ((> n (pdata-size)) r)
+     ((> (vdot (mtransform (get-transform) (pdata-ref "n" n))
+	       knobble-vec) closest)
+      ;; return average of these face points
+      (_ (+ n 3) 
+	 (vdot (mtransform (get-transform) (pdata-ref "n" n))
+	       knobble-vec)
+	 (list
+	  ;; face id
+	  (/ n 3)
+	  ;; position
+	  (vdiv
+	   (vadd
+	    (vadd 
+	     (pdata-ref "p" n)
+	     (pdata-ref "p" (+ n 1)))
+	    (pdata-ref "p" (+ n 2)))
+	   3))))
+      (else (_ (+ n 3) closest r))))
+  (with-primitive 
+   face-display
+   (let ((face-details (with-primitive virus-builder (_ 0 -99999 #f))))
+     (let ((pos (cadr face-details)))
+       (identity)
+       (translate pos)
+       (scale (vector 0.2 0.2 0.2))
+       (car face-details)
+       ))))
+
+(define (virus-builder-update-buttons buttons)
+
+  ;; (let ((canvas (document.getElementById "canvas")))
+  ;;   (let ((ctx (canvas.getContext "2d")))	
+  ;;     (ctx.beginPath)
+  ;;     (ctx.arc canvas-mouse-x canvas-mouse-y 10 0 (* Math.PI 2) true)
+  ;;     (ctx.closePath)
+  ;;     (set! ctx.strokeStyle "#fff")
+  ;;     (ctx.stroke)))
+  
+  (for-each
+   (lambda (button)
+     (let ((pos (primitive-screen-pos (button-prim button))))       
+       (let ((dist (vdist (vector canvas-mouse-x  
+				  canvas-mouse-y 0) pos)))
+	 (let ((run
+		(with-primitive 
+		 (button-prim button)
+		 (cond 
+		  ((< dist 60) 
+		   (colour (vector 1 1 1))
+		   #t)
+		  (else
+		   (colour receptor-col)
+		   #f)))))
+	   (when (and run (eq? canvas-mouse-state "down"))
+		 (let ((fn (button-fn button)))
+		   (fn)))))))
+
+   buttons))
+
+(define (build-virus-builder)
+  (set! virus-builder (with-state 
+		       (shader-assign-compiled "virus")
+		       (translate builder-pos) 
+		       (scale (vector 2 2 2))
+		       (colour virus-col)
+		       (load-primitive "models/ico.obj")))
+  
+  (set! receptor-circle (with-state (hide #t) (load-primitive "models/receptor-circle.obj")))
+  (set! receptor-triangle (with-state (hide #t) (load-primitive "models/receptor-triangle.obj")))
+  (set! receptor-square (with-state (hide #t) (load-primitive "models/receptor-square.obj")))
+  (set! receptor-donut (with-state (hide #t) (load-primitive "models/receptor-donut.obj")))
+  (set! receptor-tee (with-state (hide #t) (load-primitive "models/receptor-tee.obj")))
+  (set! receptor-angle (with-state (hide #t) (load-primitive "models/receptor-angle.obj")))
+  (set! receptor-guitar (with-state (hide #t) (load-primitive "models/receptor-guitar.obj")))
+  (set! receptor-clear (with-state (hide #t) (load-primitive "models/receptor-clear.obj")))
+
+  (set! buttons 
+	(build-list
+	 num-buttons
+	 (lambda (i)
+	   (make-button
+	    (with-state 
+	     (shader-assign-compiled "virus")
+	     (translate builder-pos)
+	     (translate (vmul (vector (cos (* (/ i num-buttons) Math.PI 2))
+				      (sin (* (/ i num-buttons) Math.PI 2))
+				      0) 4))
+	     ;;(translate (vector 0 -0.7 0))
+	     (scale (vector 0.2 0.2 0.2))
+	     ;;(rotate (vector 0 90 0))
+	     (colour receptor-col)
+	     (load-primitive (list-ref button-objs i)))
+	    (list-ref button-fns i)))))
+
+  (set! face-display 
+	(with-state 
+	 (shader-assign-compiled "virus")
+	 (parent virus-builder)
+	 (colour receptor-col)
+	 (load-primitive "models/ico.obj")))
+  
+  (set-canvas-drag-fn
+   (lambda ()
+     (set! virus-recep-id (display-front-face))
+     (let ((drag (vector (- canvas-drag-x) canvas-drag-y 0)))
+       (when (not (veq? drag (vector 0 0 0)))
+	     (let ((rot-axis (vcross drag (vector 0 0 -1)))
+		   (virus-dist (vdist (primitive-screen-pos virus-builder) (vector canvas-mouse-x canvas-mouse-y 0))))
+	       (cond
+		((< virus-dist 100)
+		 (set! virus-q (qmul virus-q (qaxisangle (vnormalise rot-axis) 6))))
+		((> virus-dist 300)
+		 (set! world-q (qmul world-q (qaxisangle (vnormalise rot-axis) 2))))		   
+		(else 0)))))))
+  
+  )
+
+(define (destroy-virus-builder)
+  (for-each 
+   (lambda (button)
+     (destroy (button-prim button)))
+   buttons)
+  (destroy virus-builder))

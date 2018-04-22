@@ -1,0 +1,39 @@
+;; -*- mode: scheme; -*-
+;; Viruscraft Copyright (C) 2017 FoAM Kernow
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define p (build-polygons 'triangles (* 3 100)))
+
+(define (render)
+  (with-primitive p (pdata-map! (lambda (p) (rndvec)) "p")))
+
+(every-frame (render))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; startup
+
+(define (read-number id)
+  (let ((w ($ (string-append "#" id))))
+    (parseFloat (js "w[0].value"))))
+
+(set! rebuild 
+      (lambda () 
+	(clear)
+	(set! insect-list (build-list 5 (lambda (i) (build-insect))))
+	(set! plant-list (plants-build-connections (build-list 30 (lambda (i) (build-plant i)))))))
+
+(set! update-params 
+      (lambda ()
+	(set! insect-sirs-model 
+	      (make-model
+	       (read-number "i-background")
+	       (read-number "i-infection")
+	       (read-number "i-recovery")
+	       (read-number "i-susceptability")))
+	(set! plant-sirs-model 
+	      (make-model
+	       (read-number "p-background")
+	       (read-number "p-infection")
+	       (read-number "p-recovery")
+	       (read-number "p-susceptability")))))
