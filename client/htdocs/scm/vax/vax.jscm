@@ -10,8 +10,11 @@
 (define receptor-c-col (vector 0 0 1))
 (define receptor-d-col (vector 1 1 0))
 
+(define parasite-create-distance 10)
 (define parasite-num-receptors 5)
 (define parasite-col (vector 1 0.5 0.2))
+(define parasite-repel 0.5)
+(define parasite-cluster -0.08)
 
 ;; posisiton is relative to parasite
 (define (make-receptor type pos parasite-id) 
@@ -23,7 +26,7 @@
 (define (receptor-parasite-id r) (list-ref r 2))
 
 (define (build-receptor type pid)
-  (let ((pos (vmul (crndvec) receptor-create-distance)))
+  (let ((pos (vmul (vector (crndf) (crndf) 0) receptor-create-distance)))
     ;; parenting and forgetting - will be deleted when
     ;; parent is destroyed
     (with-state
@@ -61,19 +64,78 @@
   (let ((pid (with-state
 	      (colour parasite-col)
 	      (translate pos)
-	      (msg pos)
 	      (build-cube))))
     (make-parasite
      pid pos 0
      (build-receptors parasite-num-receptors magic pid)
      pid)))
 
-;;(define p (build-cube))
+(define (parasite-closest parasite p)
+  (let ((closest 999999))
+    (foldl
+     (lambda (other r)
+       (if (not (eq? (parasite-id other) 
+		     (parasite-id parasite)))
+	   (let ((dist (vdist (parasite-pos parasite)
+			      (parasite-pos other))))
+	     (if (< dist closest)
+		 (begin
+		   (set! closest dist)
+		   (parasite-pos other))
+		 r))
+	   r))
+     #f p)))
 
-(define p (build-parasite (vector 0 0 0) "A"))
+(define (parasite-swarm pos closest)
+  (let ((diff (vsub pos closest)))
+    (vadd
+     pos
+     (vadd 
+      (vmul (vmul (vnormalise diff) parasite-repel) 
+	    (/ 1 (vmag diff)))
+      (vmul (vnormalise pos) parasite-cluster)))))
+
+(define (update-parasite p parasites)
+  (let ((new-pos (parasite-swarm (parasite-pos p)
+				 (parasite-closest p parasites))))
+    (with-primitive
+     (parasite-root p)
+     (identity)
+     ;; scale age...
+     (translate new-pos))     
+    (make-parasite
+     (parasite-id p)
+     new-pos 
+     (+ (parasite-age p) 1) 
+     (parasite-receptors p)
+     (parasite-root p))))
+
+(define (update-parasites parasites)
+  (map
+   (lambda (p)
+     (update-parasite p parasites))
+   parasites))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define (build-parasites n magic)
+  (build-list
+   n
+   (lambda (_)
+     (build-parasite (vmul (vector (crndf) (crndf) 0)
+			   parasite-create-distance)
+		     magic))))
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define parasites (build-parasites 50 "A"))
 
 ;;(clear-colour (vector 0.0 0.0 0.0))
 (resize-glcanvas webgl-canvas)
 
-(every-frame
-	(with-primitive (parasite-root p) (rotate (vector 1 2 3))))
+(define (render-game)
+  (set! parasites (update-parasites parasites))
+)
+
+(every-frame render-game)
