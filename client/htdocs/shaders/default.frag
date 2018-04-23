@@ -10,7 +10,7 @@ varying vec3 L;
 void main() {
     vec3 l = normalize(L);
     vec3 n = normalize(N);
-    float diffuse = dot(vec3(0,0,1),n);
+    float diffuse = dot(vec3(0,1,1),n);
 
     if(texture2D(texture, vec2(T.s, T.t)).a == 0.0) {
         discard;

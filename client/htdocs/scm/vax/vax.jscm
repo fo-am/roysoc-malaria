@@ -3,7 +3,11 @@
 
 (load "scm/game/canvas.jscm")
 
-(define receptor-create-distance 5)
+(shader-compile "default" (list "p" "n" "t" "c")
+		"shaders/default.vert"
+		"shaders/default.frag")
+
+(define receptor-create-distance 2)
 (define receptor-types (list "A" "B" "C" "D"))
 (define receptor-a-col (vector 1 0 0))
 (define receptor-b-col (vector 0 1 0))
@@ -12,9 +16,19 @@
 
 (define parasite-create-distance 10)
 (define parasite-num-receptors 5)
-(define parasite-col (vector 1 0.5 0.2))
-(define parasite-repel 0.5)
-(define parasite-cluster -0.08)
+(define parasite-col (vector 0.8 0.4 1.0))
+(define parasite-repel 0.05)
+(define parasite-cluster -0.002)
+(define parasite-inertia 0.95)
+(define parasite-max-age 100)
+(define parasite-growth-speed 0.1)
+(define parasite-max-pop 60)
+(define parasite-spawn-distance 1)
+
+(define parasites-start-num 3)
+
+(define vax-inertia 0.05)
+(define vax-speed -0.5)
 
 ;; posisiton is relative to parasite
 (define (make-receptor type pos parasite-id) 
@@ -23,51 +37,79 @@
 ;; don't need root, just parent and forget...
 (define (receptor-type r) (list-ref r 0))
 (define (receptor-pos r) (list-ref r 1))
-(define (receptor-parasite-id r) (list-ref r 2))
+(define (receptor-parasite-id r) (l;ist-ref r 2))
 
-(define (build-receptor type pid)
-  (let ((pos (vmul (vector (crndf) (crndf) 0) receptor-create-distance)))
-    ;; parenting and forgetting - will be deleted when
-    ;; parent is destroyed
-    (with-state
-     (cond 
-      ((eq? type "A") (colour receptor-a-col))
-      ((eq? type "B") (colour receptor-b-col))
-      ((eq? type "C") (colour receptor-c-col))
-      (else (colour receptor-d-col)))
-     (parent pid)
-     (translate pos)
-     (scale (vector 0.25 0.25 0.25))
-     (build-cube))
-    (make-receptor type pos pid)))
+(define (build-receptor pos type pid)
+  ;; parenting and forgetting - will be deleted when
+  ;; parent is destroyed
+  (with-state
+   (cond 
+    ((eq? type "A") (colour receptor-a-col))
+    ((eq? type "B") (colour receptor-b-col))
+    ((eq? type "C") (colour receptor-c-col))
+    (else (colour receptor-d-col)))
+   (parent pid)
+   (scale (vector 0.25 0.25 0.1))
+   (translate pos)
+   (texture (load-texture "circle-trans.png"))
+   (shader-assign-compiled "default")
+   (build-cube))
+  (make-receptor type pos pid))
   
 (define (build-receptors n magic pid)
-  (cons
-   (build-receptor magic pid)
-   (build-list
-    (- n 1)
-    (lambda (_) (build-receptor (choose receptor-types) pid)))))
+  (let ((start (* (rndf) 2 3.141)))
+    (cons
+     (build-receptor 
+      (vmul (vector (sin start) (cos start) 0) receptor-create-distance)
+      magic pid)
+     (build-list
+      (- n 1)
+      (lambda (i) 
+	(build-receptor 
+	 (vmul (vector (sin (+ start (* (/ (+ i 1) n) 2 3.141)))
+		       (cos (+ start (* (/ (+ i 1) n) 2 3.141)))
+		       0)
+	       receptor-create-distance)
+	 (choose receptor-types) pid))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define (make-parasite id pos age receptors root)
-	(list id pos age receptors root))
+(define (make-parasite id pos vel age receptors root)
+	(list id pos vel age receptors root))
 
 (define (parasite-id p) (list-ref p 0))
 (define (parasite-pos p) (list-ref p 1))
-(define (parasite-age p) (list-ref p 2))
-(define (parasite-receptors p) (list-ref p 3))
-(define (parasite-root p) (list-ref p 4))
+(define (parasite-vel p) (list-ref p 2))
+(define (parasite-age p) (list-ref p 3))
+(define (parasite-receptors p) (list-ref p 4))
+(define (parasite-root p) (list-ref p 5))
+
+(define (parasite-prim)
+  (with-state
+   (hint-nozwrite)
+   (shader-assign-compiled "default")
+   (colour parasite-col)
+   (texture (load-texture "circle-trans.png"))
+   (build-cube)))
 
 ;; lazily reuse primitive ids as parasite ids
 (define (build-parasite pos magic)
-  (let ((pid (with-state
-	      (colour parasite-col)
-	      (translate pos)
-	      (build-cube))))
+  (let ((pid (parasite-prim)))
     (make-parasite
-     pid pos 0
+     pid pos 
+     (vector 0 0 0) 
+     (* (rndf) 100)
      (build-receptors parasite-num-receptors magic pid)
+     pid)))
+
+(define (parasite-spawn pos)
+  (let ((pid (parasite-prim)))
+    (make-parasite
+     pid pos 
+     (vector 0 0 0) 
+     (random 10)
+     ;; todo: inherit
+     (build-receptors  parasite-num-receptors "A" pid)
      pid)))
 
 (define (parasite-closest parasite p)
@@ -84,58 +126,191 @@
 		   (parasite-pos other))
 		 r))
 	   r))
-     #f p)))
+     (vector 0 0 0) p)))
 
-(define (parasite-swarm pos closest)
+(define (parasite-swarm vel pos closest)
   (let ((diff (vsub pos closest)))
     (vadd
-     pos
-     (vadd 
-      (vmul (vmul (vnormalise diff) parasite-repel) 
-	    (/ 1 (vmag diff)))
-      (vmul (vnormalise pos) parasite-cluster)))))
+     (vmul vel parasite-inertia)
+     (vmul
+      (vadd 
+       (vmul (vmul (vnormalise diff) parasite-repel) 
+	     (Math.pow (/ 1 (vmag diff)) 1.5))
+       (vmul (vnormalise pos) parasite-cluster))
+      (/ 1 parasite-inertia)))))
 
 (define (update-parasite p parasites)
-  (let ((new-pos (parasite-swarm (parasite-pos p)
-				 (parasite-closest p parasites))))
+  (let ((new-vel (parasite-swarm 
+		  (parasite-vel p)
+		  (parasite-pos p)
+		  (parasite-closest p parasites))))
     (with-primitive
      (parasite-root p)
      (identity)
-     ;; scale age...
-     (translate new-pos))     
+     (translate (parasite-pos p))
+     (let ((sc (+ 2 (* (/ (parasite-age p) parasite-max-age) 4))))
+       (scale (vector sc sc 0.01)))
+     )
     (make-parasite
      (parasite-id p)
-     new-pos 
-     (+ (parasite-age p) 1) 
+     (vadd (parasite-pos p) new-vel)
+     new-vel
+     (+ (parasite-age p) parasite-growth-speed) 
      (parasite-receptors p)
      (parasite-root p))))
 
-(define (update-parasites parasites)
-  (map
-   (lambda (p)
-     (update-parasite p parasites))
+(define (parasites-spawn parasites)
+  (foldl
+   (lambda (p r)
+     (cond 
+      ((> (parasite-age p) parasite-max-age)
+       (destroy (parasite-root p))
+       (if (< (length parasites) parasite-max-pop)
+	   (let ((new-pos (vector (crndf) (crndf) 0)))
+	     (append
+	      (list (parasite-spawn (vadd (parasite-pos p) (vmul new-pos parasite-spawn-distance)))
+		    (parasite-spawn (vadd (parasite-pos p) (vmul new-pos (- parasite-spawn-distance)))))
+	      r))
+	   r))
+      (else (cons p r))))
+   '()
    parasites))
+		
+(define (parasites-destroy-all parasites)
+  (for-each
+   (lambda (p)
+     (destroy (parasite-root p)))
+   parasites))
+
+(define (update-parasites parasites)
+  (cond 
+   ((> (length parasites) parasite-max-pop)
+    (parasites-destroy-all parasites)
+    (build-parasites parasites-start-num "A"))
+   (else
+    (parasites-spawn
+     (map
+      (lambda (p)
+	(update-parasite p parasites))
+      parasites)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(define (parasites-search pid parasites)
+  (cond
+   ((null? parasites) #f)
+   ((eq? (parasite-id (car parasites)) pid)
+    (car parasites))
+   (else
+    (parasites-search pid (cdr parasites)))))
+   
 (define (build-parasites n magic)
   (build-list
    n
    (lambda (_)
-     (build-parasite (vmul (vector (crndf) (crndf) 0)
-			   parasite-create-distance)
-		     magic))))
-
+     (build-parasite 
+      (vmul (vector (crndf) (crndf) 0)
+	    parasite-create-distance)
+      magic))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define parasites (build-parasites 50 "A"))
+(define (make-vax pid dest vel pos root)
+  (list pid dest vel pos root))
 
-;;(clear-colour (vector 0.0 0.0 0.0))
-(resize-glcanvas webgl-canvas)
+(define (vax-pid v) (list-ref v 0))
+(define (vax-dest v) (list-ref v 1))
+(define (vax-vel v) (list-ref v 2))
+(define (vax-pos v) (list-ref v 3))
+(define (vax-root v) (list-ref v 4))
+
+(define (build-vax)
+  (make-vax
+   -1 (vector 0 0 0) (vector 0 0 0) (vector 0 0 0)
+   (with-state
+    (texture (load-texture "circle-trans.png"))
+    (shader-assign-compiled "default")
+    (build-cube))))
+
+(define (calc-vax-swarm pos vel dest)
+  (let ((v (vmul (vnormalise (vsub pos dest)) vax-speed)))
+    (vadd (vmul v vax-inertia)
+	  (vmul vel (- 1 vax-inertia))
+	  )))
+
+(define (vax-inject vs)
+  (map
+   (lambda (v)
+     (make-vax
+      -1
+      (vector 0 0 0)
+      (vector 0 (+ 0.3 (* (rndf) 0.5)) 0)
+      (vadd (vector (crndf) (crndf) 0) (vector 0 -15 0))
+      (vax-root v)))
+   vs))
+
+(define (update-vax-swarm vs parasites)
+  (map
+   (lambda (v)
+     (let ((p (parasites-search (vax-pid v) parasites)))
+       (cond (p
+	      (with-primitive
+	       (vax-root v) 
+	       (identity)
+	       (translate (vax-pos v))
+	       (scale (vector 0.5 0.5 0.01)))
+	      (make-vax
+	       (vax-pid v)
+	       (vadd (vax-dest v) (parasite-vel p)) 
+	       (calc-vax-swarm (vax-pos v) (vax-vel v) (vax-dest v))
+	       (vadd (vax-pos v) (vax-vel v))
+	       (vax-root v)))
+	     (else
+	      (let ((p (choose parasites)))
+		(make-vax
+		 (parasite-id p)
+		 (vadd (parasite-pos p) (receptor-pos (choose (parasite-receptors p))))
+		 (vax-vel v)
+		 (vax-pos v)
+		 (vax-root v)))))))
+   vs))
+
+(define (build-vax-swarm n)
+  (build-list n (lambda (_) (build-vax))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define parasites '())
+(define vax-swarm '())
+(define inject-time 0)
 
 (define (render-game)
   (set! parasites (update-parasites parasites))
-)
+  (set! vax-swarm (update-vax-swarm vax-swarm parasites))
+  (set! inject-time (+ inject-time 1))
+  (when (zero? (modulo inject-time 400))
+	(set! vax-swarm (vax-inject vax-swarm)))
+  )
 
-(every-frame render-game)
+(define init #f)
+
+(define (run-init)
+  (set! vax-swarm (vax-inject (build-vax-swarm 200)))
+  (set! parasites (build-parasites 3 "A"))
+;;(clear-colour (vector 0.0 0.0 0.0))
+  (resize-glcanvas webgl-canvas))
+
+(define (flot)
+  (when  (and
+	  (not init)
+	  ;(meshes-loaded?)
+	  ;(textures-loaded?)
+	  (shaders-loaded?)
+	  ;(canvas-loaded?)
+	  )
+	 (set! init #t)
+	 (run-init)	 
+	 (every-frame render-game)))
+
+(every-frame (flot))
+	 
