@@ -16,7 +16,12 @@
 
 (define parasite-create-distance 10)
 (define parasite-num-receptors 5)
-(define parasite-col (vector 0.8 0.4 1.0))
+
+;; 85 6d 9b b6
+
+(define parasite-col (vector (/ 0x85 255)
+			     (/ 0x6d 255)
+			     (/ 0x9b 255)))
 (define parasite-repel 0.05)
 (define parasite-cluster -0.002)
 (define parasite-inertia 0.95)
@@ -182,6 +187,20 @@
      (destroy (parasite-root p)))
    parasites))
 
+;; (define (parasites-contain parasites)
+;;   (map
+;;    (lambda (p)
+;;      (if (> (vdist (vector 0 0 0) (parasite-pos p)) 10)
+;; 	 (make-parasite
+;; 	  (parasite-id p)
+;; 	  (vadd (parasite-pos p) new-vel)
+;; 	  new-vel
+;; 	  (+ (parasite-age p) parasite-growth-speed) 
+;; 	  (parasite-receptors p)
+;; 	  (parasite-root p))))
+
+			   
+
 (define (update-parasites parasites)
   (cond 
    ((> (length parasites) parasite-max-pop)
@@ -297,7 +316,7 @@
 (define (run-init)
   (set! vax-swarm (vax-inject (build-vax-swarm 200)))
   (set! parasites (build-parasites 3 "A"))
-;;(clear-colour (vector 0.0 0.0 0.0))
+  (clear-colour (list 0.0 0.0 0.0 0.0))
   (resize-glcanvas webgl-canvas))
 
 (define (flot)
