@@ -1,11 +1,8 @@
 ;; -*- mode: scheme; -*-
 ;; Royal Soc Malaria Copyright (C) 2018 FoAM Kernow
 
-(load "scm/game/canvas.jscm")
-
-(shader-compile "default" (list "p" "n" "t" "c")
-		"shaders/default.vert"
-		"shaders/default.frag")
+(load "flx/scm/canvas.jscm")
+(load "flx/scm/canvas-widgets.jscm")
 
 (define receptor-create-distance 2)
 (define receptor-types (list "A" "B" "C" "D"))
@@ -42,7 +39,7 @@
 ;; don't need root, just parent and forget...
 (define (receptor-type r) (list-ref r 0))
 (define (receptor-pos r) (list-ref r 1))
-(define (receptor-parasite-id r) (l;ist-ref r 2))
+(define (receptor-parasite-id r) (list-ref r 2))
 
 (define (build-receptor pos type pid)
   ;; parenting and forgetting - will be deleted when
@@ -251,7 +248,7 @@
     (shader-assign-compiled "default")
     (build-cube))))
 
-(define (calc-vax-swarm pos vel dest)
+(define (calc-vax-swarm-a pos vel dest)
   (let ((v (vmul (vnormalise (vsub pos dest)) vax-speed)))
     (vadd (vmul v vax-inertia)
 	  (vmul vel (- 1 vax-inertia))
@@ -264,60 +261,164 @@
       -1
       (vector 0 0 0)
       (vector 0 (+ 0.3 (* (rndf) 0.5)) 0)
-      (vadd (vector (crndf) (crndf) 0) (vector 0 -15 0))
+      (vadd (vector (+ (crndf) 0.3) (* (crndf) 2.5) 0) (vector 0 -8.3 0))
       (vax-root v)))
    vs))
 
-(define (update-vax-swarm vs parasites)
+(define in-syringe -99)
+
+(define (vax-in-syringe vs)
   (map
    (lambda (v)
-     (let ((p (parasites-search (vax-pid v) parasites)))
-       (cond (p
-	      (with-primitive
-	       (vax-root v) 
-	       (identity)
-	       (translate (vax-pos v))
-	       (scale (vector 0.5 0.5 0.01)))
-	      (make-vax
-	       (vax-pid v)
-	       (vadd (vax-dest v) (parasite-vel p)) 
-	       (calc-vax-swarm (vax-pos v) (vax-vel v) (vax-dest v))
-	       (vadd (vax-pos v) (vax-vel v))
-	       (vax-root v)))
-	     (else
-	      (let ((p (choose parasites)))
-		(make-vax
-		 (parasite-id p)
-		 (vadd (parasite-pos p) (receptor-pos (choose (parasite-receptors p))))
-		 (vax-vel v)
-		 (vax-pos v)
-		 (vax-root v)))))))
+     (make-vax
+      in-syringe
+      (vector 0 0 0)
+      (vector 0 0 0)
+      (vadd (vector (+ (crndf) 0.3) (* (crndf) 2.5) 0) (vector 0 -8.3 0))
+      (vax-root v)))
    vs))
 
-(define (build-vax-swarm n)
+
+(define (vax-colour! vs col)
+  (for-each
+   (lambda (v)
+     (with-primitive (vax-root v) (colour col)))
+   vs))
+
+(define (update-vax-swarm-a vs parasites)
+  (map
+   (lambda (v)
+     (with-primitive
+      (vax-root v) 
+      (when (and (not (eq? (vax-pid v) in-syringe)) 
+		 (< (rndf) 0.01))
+	    (hide #t))
+      (identity)
+      (if (eq? (vax-pid v) in-syringe) 
+	  (translate (vadd (vector (crndf) (crndf) 0) (vax-pos v)))
+	  (translate (vax-pos v)))
+      (scale (vector 0.5 0.5 0.01)))
+
+     (if (eq? (vax-pid v) in-syringe)
+	 v
+	 (let ((p (parasites-search (vax-pid v) parasites)))
+	   (cond 
+	    (p
+	     (make-vax
+	      (vax-pid v)
+	      (vadd (vax-dest v) (parasite-vel p)) 
+	      (calc-vax-swarm-a (vax-pos v) (vax-vel v) (vax-dest v))
+	      (vadd (vax-pos v) (vax-vel v))
+	      (vax-root v)))
+	    (else
+	     (let ((p (choose parasites)))
+	       (with-primitive (vax-root v) (hide #f))
+	       (make-vax
+		(parasite-id p)
+		(vadd (parasite-pos p) (receptor-pos (choose (parasite-receptors p))))
+		(vax-vel v)
+		(vax-pos v)
+		(vax-root v))))))))
+   vs))
+
+(define (build-vax-swarm-a n)
   (build-list n (lambda (_) (build-vax))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; 2D schenanigans
+
+(define syringe-button '())
+
+(define (render-canvas)
+  (image-button-update vial1-button 0)
+  (image-button-update vial2-button 0)
+  (animated-button-update syringe-button 0)
+
+  (animated-button-render! syringe-button)
+  (image-button-render! vial1-button)
+  (image-button-render! vial2-button)
+  )
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; preload things
+
+(shader-compile "default" (list "p" "n" "t" "c")
+		"shaders/default.vert"
+		"shaders/default.frag")
+
+(load-images!
+ (list
+  "syringe.png"
+  "plunger.png"
+  "vial.png"
+  )
+ (lambda ()
+   0))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define parasites '())
-(define vax-swarm '())
-(define inject-time 0)
+(define vax-swarm-a '())
+
+(define current-vax "red")
 
 (define (render-game)
+  (resize-glcanvas webgl-canvas)
+  (resize-canvas canvas)
   (set! parasites (update-parasites parasites))
-  (set! vax-swarm (update-vax-swarm vax-swarm parasites))
-  (set! inject-time (+ inject-time 1))
-  (when (zero? (modulo inject-time 400))
-	(set! vax-swarm (vax-inject vax-swarm)))
+  (set! vax-swarm-a (update-vax-swarm-a vax-swarm-a parasites))
+  (ctx.clearRect 0 0 screen-width screen-height)	  
+  (render-canvas)
   )
 
 (define init #f)
 
 (define (run-init)
-  (set! vax-swarm (vax-inject (build-vax-swarm 200)))
+  (resize-glcanvas webgl-canvas)
+  (canvas-setup)
+  (resize-canvas canvas)
+
+  (set! vax-swarm-a (vax-inject (build-vax-swarm-a 200)))
   (set! parasites (build-parasites 3 "A"))
-  (clear-colour (list 0.0 0.0 0.0 0.0))
-  (resize-glcanvas webgl-canvas))
+
+  (set! vial1-button 
+	(make-image-button 
+	 200 540 "vial.png" "" 
+	 (lambda (x) 
+	   (set! vax-swarm-a (vax-in-syringe vax-swarm-a))
+	   (vax-colour! vax-swarm-a (vector 1 0 0))
+	   (when (> (animated-button-time syringe-button) 75)
+		 (set! syringe-button
+		       (animated-button-modify-time 
+			(animated-button-modify-state 
+			 syringe-button "filling") 0))))))
+
+  (set! vial2-button 
+	(make-image-button 
+	 300 540 "vial.png" "" 
+	 (lambda (x) 
+	   (set! vax-swarm-a (vax-in-syringe vax-swarm-a))
+	   (vax-colour! vax-swarm-a (vector 1 1 0))
+	   (when (> (animated-button-time syringe-button) 75)
+		 (set! syringe-button
+		       (animated-button-modify-time 
+			(animated-button-modify-state 
+			 syringe-button "filling") 0))))))
+  
+  (set! syringe-button 
+	(make-animated-button 
+	 (dbg (/ screen-width 2)) 540 "syringe.png" 
+	 "plunger.png" 
+	 (lambda (x) 
+	   (when (and (eq? (animated-button-state syringe-button) "filling")
+		      (> (animated-button-time syringe-button) 75))
+		 (set! syringe-button
+		       (animated-button-modify-time 
+			(animated-button-modify-state 
+			 syringe-button "emptying") 0))				 
+		 (set! vax-swarm-a (vax-inject vax-swarm-a))))))
+  
+  (clear-colour (list 0.0 0.0 0.0 0.0)))
 
 (define (flot)
   (when  (and
@@ -325,7 +426,7 @@
 	  ;(meshes-loaded?)
 	  ;(textures-loaded?)
 	  (shaders-loaded?)
-	  ;(canvas-loaded?)
+	  (canvas-loaded?)
 	  )
 	 (set! init #t)
 	 (run-init)	 
