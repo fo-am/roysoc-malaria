@@ -333,6 +333,24 @@
       (else v)))
    vs))
 
+(define (vax-choose-receptor type receptors)
+  (foldl
+   (lambda (rec r)
+     (if (and (not r) (eq? (receptor-type rec) type))
+	 rec r))
+   #f receptors))
+
+;; returns (pid,receptor)
+(define (vax-choose-parasite/receptor type parasites)
+  (foldl
+   (lambda (p r)
+     (if (not r)
+	 (let ((receptor (vax-choose-receptor type (parasite-receptors p))))
+	   (if receptor (list p receptor) #f))
+	 r))
+   #f
+   (shuffle parasites)))
+
 (define (update-vax-swarm vs parasites)
   (map
    (lambda (v)
@@ -345,12 +363,12 @@
 	  (translate (vadd (vector (crndf) (crndf) 0) (vax-pos v)))
 	  (translate (vax-pos v)))
       (scale (vector 0.5 0.5 0.01)))
-
+     
      (if (not (eq? (vax-state v) vax-state-chasing))
 	 v
 	 (let ((p (parasites-search (vax-pid v) parasites)))
 	   (cond 
-	    (p
+	    (p ;; still alive - keep chasing
 	     (let ((dist (vdist (vax-pos v) (vax-dest v))))
 	       (make-vax
 		(if (< dist vax-collide-distance) vax-state-idle vax-state-chasing)
@@ -361,18 +379,28 @@
 		(vax-root v)
 		(< dist vax-collide-distance)
 		(vax-type v))))
-	    (else
-	     (let ((p (choose parasites)))
-	       (with-primitive (vax-root v) (hide #f))
-	       (make-vax
-		vax-state-chasing
-		(parasite-id p)
-		(vadd (parasite-pos p) (receptor-pos (choose (parasite-receptors p))))
-		(vax-vel v)
-		(vax-pos v)
-		(vax-root v)
-		#f
-		(vax-type v))))))))
+	    (else ;; it's died (or first time), find a new one...
+	     (let ((p (vax-choose-parasite/receptor (vax-type v) parasites)))
+	       (if (not p)
+		   (make-vax
+		    vax-state-idle -1 (vector 0 0 0) (vector 0 0 0)
+		    (vector 0 0 0)
+		    (vax-root v)
+		    #f (vax-type v))
+		   (let ((parasite (car p)) 
+			 (receptor (cadr p)))
+		     (with-primitive (vax-root v) (hide #f))
+		     (make-vax
+		      vax-state-chasing
+		      (parasite-id parasite)
+		      (vadd 
+		       (parasite-pos parasite) 
+		       (receptor-pos receptor))
+		      (vax-vel v)
+		      (vax-pos v)
+		      (vax-root v)
+		      #f
+		      (vax-type v))))))))))
    vs))
 
 (define (vax-destroyed-list vs)
