@@ -46,7 +46,7 @@
 (define parasites-start-num 10)
 
 (define vax-swarm-size 300)
-(define vax-inject-amount 30)
+(define vax-inject-amount 100)
 (define vax-inertia 0.05)
 (define vax-speed -0.5)
 (define vax-collide-distance 0.5)
