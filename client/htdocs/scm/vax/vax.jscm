@@ -4,7 +4,7 @@
 (load "flx/scm/canvas.jscm")
 (load "flx/scm/canvas-widgets.jscm")
 
-(define receptor-create-distance 2)
+(define receptor-create-distance 0.5)
 (define receptor-types (list "A" "B" "C" "D"))
 (define receptor-a-col (vector 1 0 0))
 (define receptor-b-col (vector 0 1 0))
@@ -31,6 +31,7 @@
 
 (define vax-inertia 0.05)
 (define vax-speed -0.5)
+(define vax-collide-distance 0.5)
 
 ;; posisiton is relative to parasite
 (define (make-receptor type pos parasite-id) 
@@ -51,24 +52,31 @@
     ((eq? type "C") (colour receptor-c-col))
     (else (colour receptor-d-col)))
    (parent pid)
-   (scale (vector 0.25 0.25 0.1))
    (translate pos)
-   (texture (load-texture "circle-trans.png"))
-   (shader-assign-compiled "default")
-   (build-cube))
+   ;;(texture (load-texture "circle-trans.png"))
+   ;;(shader-assign-compiled "default")
+   ;;(load-primitive "models/plane.obj")
+
+   (shader-assign-compiled "receptor")   
+   (texture (load-texture "noise.png"))
+   (load-primitive "models/circlefansmall.obj")
+
+   )
   (make-receptor type pos pid))
+
+(define squash 0.4)
   
 (define (build-receptors n magic pid)
   (let ((start (* (rndf) 2 3.141)))
     (cons
      (build-receptor 
-      (vmul (vector (sin start) (cos start) 0) receptor-create-distance)
+      (vmul (vector (* (sin start) squash) (cos start) 0) receptor-create-distance)
       magic pid)
      (build-list
       (- n 1)
       (lambda (i) 
 	(build-receptor 
-	 (vmul (vector (sin (+ start (* (/ (+ i 1) n) 2 3.141)))
+	 (vmul (vector (* (sin (+ start (* (/ (+ i 1) n) 2 3.141))) squash)
 		       (cos (+ start (* (/ (+ i 1) n) 2 3.141)))
 		       0)
 	       receptor-create-distance)
@@ -89,10 +97,10 @@
 (define (parasite-prim)
   (with-state
    (hint-nozwrite)
-   (shader-assign-compiled "default")
+   (shader-assign-compiled "parasite")
    (colour parasite-col)
-   (texture (load-texture "circle-trans.png"))
-   (build-cube)))
+   (texture (load-texture "noise.png"))
+   (load-primitive "models/malaria.obj")))
 
 ;; lazily reuse primitive ids as parasite ids
 (define (build-parasite pos magic)
@@ -149,6 +157,14 @@
     (with-primitive
      (parasite-root p)
      (identity)
+     ;; (when (zero? (random 5))
+     ;; 	   (texture (load-texture
+     ;; 		     (let ((t (random 3)))
+     ;; 		       (cond 
+     ;; 			((eq? t 0) "mal1-1.png")
+     ;; 			((eq? t 1) "mal1-2.png")
+     ;; 			(else "mal1-3.png"))))))
+     (shader-shared-uniform! "time" "f" (time))
      (translate (parasite-pos p))
      (let ((sc (+ 2 (* (/ (parasite-age p) parasite-max-age) 4))))
        (scale (vector sc sc 0.01)))
@@ -177,7 +193,18 @@
       (else (cons p r))))
    '()
    parasites))
-		
+
+(define (parasites-destroy parasites destroyed)
+  (foldl
+   (lambda (p r)
+     (cond 
+      ((list-contains? destroyed (parasite-id p))
+       (destroy (parasite-root p))
+       r)
+      (else (cons p r))))
+   '()
+   parasites))
+
 (define (parasites-destroy-all parasites)
   (for-each
    (lambda (p)
@@ -197,10 +224,11 @@
 ;; 	  (parasite-root p))))
 
 			   
-
 (define (update-parasites parasites)
   (cond 
-   ((> (length parasites) parasite-max-pop)
+   ((zero? (length parasites)) ;; win
+    (build-parasites parasites-start-num "A"))
+   ((> (length parasites) parasite-max-pop) ;; lose
     (parasites-destroy-all parasites)
     (build-parasites parasites-start-num "A"))
    (else
@@ -231,14 +259,15 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define (make-vax pid dest vel pos root)
-  (list pid dest vel pos root))
+(define (make-vax pid dest vel pos root collide)
+  (list pid dest vel pos root collide))
 
 (define (vax-pid v) (list-ref v 0))
 (define (vax-dest v) (list-ref v 1))
 (define (vax-vel v) (list-ref v 2))
 (define (vax-pos v) (list-ref v 3))
 (define (vax-root v) (list-ref v 4))
+(define (vax-collide v) (list-ref v 5))
 
 (define (build-vax)
   (make-vax
@@ -246,9 +275,10 @@
    (with-state
     (texture (load-texture "circle-trans.png"))
     (shader-assign-compiled "default")
-    (build-cube))))
+    (load-primitive "models/plane.obj"))
+   #f))
 
-(define (calc-vax-swarm-a pos vel dest)
+(define (calc-vax-swarm pos vel dest)
   (let ((v (vmul (vnormalise (vsub pos dest)) vax-speed)))
     (vadd (vmul v vax-inertia)
 	  (vmul vel (- 1 vax-inertia))
@@ -262,9 +292,11 @@
       (vector 0 0 0)
       (vector 0 (+ 0.3 (* (rndf) 0.5)) 0)
       (vadd (vector (+ (crndf) 0.3) (* (crndf) 2.5) 0) (vector 0 -8.3 0))
-      (vax-root v)))
+      (vax-root v)
+      #f))
    vs))
 
+;; special id code for inside the syringe
 (define in-syringe -99)
 
 (define (vax-in-syringe vs)
@@ -275,7 +307,8 @@
       (vector 0 0 0)
       (vector 0 0 0)
       (vadd (vector (+ (crndf) 0.3) (* (crndf) 2.5) 0) (vector 0 -8.3 0))
-      (vax-root v)))
+      (vax-root v)
+      #f))
    vs))
 
 
@@ -285,7 +318,7 @@
      (with-primitive (vax-root v) (colour col)))
    vs))
 
-(define (update-vax-swarm-a vs parasites)
+(define (update-vax-swarm vs parasites)
   (map
    (lambda (v)
      (with-primitive
@@ -304,12 +337,14 @@
 	 (let ((p (parasites-search (vax-pid v) parasites)))
 	   (cond 
 	    (p
-	     (make-vax
-	      (vax-pid v)
-	      (vadd (vax-dest v) (parasite-vel p)) 
-	      (calc-vax-swarm-a (vax-pos v) (vax-vel v) (vax-dest v))
-	      (vadd (vax-pos v) (vax-vel v))
-	      (vax-root v)))
+	     (let ((dist (vdist (vax-pos v) (vax-dest v))))
+	       (make-vax
+		(vax-pid v)
+		(vadd (vax-dest v) (parasite-vel p)) 
+		(calc-vax-swarm (vax-pos v) (vax-vel v) (vax-dest v))
+		(vadd (vax-pos v) (vax-vel v))
+		(vax-root v)
+		(< dist vax-collide-distance))))
 	    (else
 	     (let ((p (choose parasites)))
 	       (with-primitive (vax-root v) (hide #f))
@@ -318,10 +353,18 @@
 		(vadd (parasite-pos p) (receptor-pos (choose (parasite-receptors p))))
 		(vax-vel v)
 		(vax-pos v)
-		(vax-root v))))))))
+		(vax-root v)
+		#f)))))))
    vs))
 
-(define (build-vax-swarm-a n)
+(define (vax-destroyed-list vs)
+  (foldl
+   (lambda (v r)
+     (if (vax-collide v) (cons (vax-pid v) r) r))
+   '()
+   vs))
+
+(define (build-vax-swarm n)
   (build-list n (lambda (_) (build-vax))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -345,6 +388,24 @@
 (shader-compile "default" (list "p" "n" "t" "c")
 		"shaders/default.vert"
 		"shaders/default.frag")
+(shader-compile "parasite" (list "p" "n" "t" "c")
+		"shaders/parasite.vert"
+		"shaders/parasite.frag")
+(shader-compile "receptor" (list "p" "n" "t" "c")
+		"shaders/receptor.vert"
+		"shaders/receptor.frag")
+
+(load-texture "mal1-1.png")
+(load-texture "mal1-2.png")
+(load-texture "mal1-3.png")
+(load-texture "circle-trans.png")
+(load-texture "noise.png")
+
+(load-mesh-cache "models/plane.obj")
+(load-mesh-cache "models/circlefan.obj")
+(load-mesh-cache "models/circlemesh.obj")
+(load-mesh-cache "models/circlefansmall.obj")
+(load-mesh-cache "models/malaria.obj")
 
 (load-images!
  (list
@@ -360,15 +421,22 @@
 (define parasites '())
 (define vax-swarm-a '())
 
+(define recep '())
+
 (define current-vax "red")
 
 (define (render-game)
   (resize-glcanvas webgl-canvas)
   (resize-canvas canvas)
   (set! parasites (update-parasites parasites))
-  (set! vax-swarm-a (update-vax-swarm-a vax-swarm-a parasites))
+  (set! vax-swarm-a (update-vax-swarm vax-swarm-a parasites))
+  (set! parasites (parasites-destroy parasites (vax-destroyed-list vax-swarm-a)))
+
   (ctx.clearRect 0 0 screen-width screen-height)	  
   (render-canvas)
+
+  (with-primitive recep (shader-shared-uniform! "time" "f" (time)))
+
   )
 
 (define init #f)
@@ -378,8 +446,12 @@
   (canvas-setup)
   (resize-canvas canvas)
 
-  (set! vax-swarm-a (vax-inject (build-vax-swarm-a 200)))
+  (set! vax-swarm-a (vax-inject (build-vax-swarm 200)))
   (set! parasites (build-parasites 3 "A"))
+
+  (set! recep (with-state
+	       (shader-assign-compiled "receptor")   
+	       (build-cube)))
 
   (set! vial1-button 
 	(make-image-button 
@@ -423,8 +495,8 @@
 (define (flot)
   (when  (and
 	  (not init)
-	  ;(meshes-loaded?)
-	  ;(textures-loaded?)
+	  (meshes-loaded?)
+	  (textures-loaded?)
 	  (shaders-loaded?)
 	  (canvas-loaded?)
 	  )
