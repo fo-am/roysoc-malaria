@@ -11,6 +11,13 @@
 (define receptor-c-col (vector 0 0 1))
 (define receptor-d-col (vector 1 1 0))
 
+(define (type->col type)
+  (cond 
+   ((eq? type "A") receptor-a-col)
+   ((eq? type "B") receptor-b-col)
+   ((eq? type "C") receptor-c-col)
+   (else receptor-d-col)))
+
 (define parasite-create-distance 10)
 (define parasite-num-receptors 5)
 
@@ -29,6 +36,8 @@
 
 (define parasites-start-num 3)
 
+(define vax-swarm-size 200)
+(define vax-inject-amount 50)
 (define vax-inertia 0.05)
 (define vax-speed -0.5)
 (define vax-collide-distance 0.5)
@@ -46,11 +55,7 @@
   ;; parenting and forgetting - will be deleted when
   ;; parent is destroyed
   (with-state
-   (cond 
-    ((eq? type "A") (colour receptor-a-col))
-    ((eq? type "B") (colour receptor-b-col))
-    ((eq? type "C") (colour receptor-c-col))
-    (else (colour receptor-d-col)))
+   (colour (type->col type))
    (parent pid)
    (translate pos)
    ;;(texture (load-texture "circle-trans.png"))
@@ -258,25 +263,32 @@
       magic))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; vax lifetime
 
-(define (make-vax pid dest vel pos root collide)
-  (list pid dest vel pos root collide))
+(define vax-state-idle 0)
+(define vax-state-syringe 1)
+(define vax-state-chasing 2)
 
-(define (vax-pid v) (list-ref v 0))
-(define (vax-dest v) (list-ref v 1))
-(define (vax-vel v) (list-ref v 2))
-(define (vax-pos v) (list-ref v 3))
-(define (vax-root v) (list-ref v 4))
-(define (vax-collide v) (list-ref v 5))
+(define (make-vax state pid dest vel pos root collide type)
+  (list state pid dest vel pos root collide type))
+
+(define (vax-state v) (list-ref v 0))
+(define (vax-pid v) (list-ref v 1))
+(define (vax-dest v) (list-ref v 2))
+(define (vax-vel v) (list-ref v 3))
+(define (vax-pos v) (list-ref v 4))
+(define (vax-root v) (list-ref v 5))
+(define (vax-collide v) (list-ref v 6))
+(define (vax-type v) (list-ref v 7))
 
 (define (build-vax)
   (make-vax
-   -1 (vector 0 0 0) (vector 0 0 0) (vector 0 0 0)
+   vax-state-idle -1 (vector 0 0 0) (vector 0 0 0) (vector 0 0 0)
    (with-state
     (texture (load-texture "circle-trans.png"))
     (shader-assign-compiled "default")
     (load-primitive "models/plane.obj"))
-   #f))
+   #f "A"))
 
 (define (calc-vax-swarm pos vel dest)
   (let ((v (vmul (vnormalise (vsub pos dest)) vax-speed)))
@@ -287,35 +299,38 @@
 (define (vax-inject vs)
   (map
    (lambda (v)
-     (make-vax
-      -1
-      (vector 0 0 0)
-      (vector 0 (+ 0.3 (* (rndf) 0.5)) 0)
-      (vadd (vector (+ (crndf) 0.3) (* (crndf) 2.5) 0) (vector 0 -8.3 0))
-      (vax-root v)
-      #f))
+     (cond 
+      ((eq? (vax-state v) vax-state-syringe)
+       (make-vax
+	vax-state-chasing
+	-1
+	(vector 0 0 0)
+	(vector 0 (+ 0.3 (* (rndf) 0.5)) 0)
+	(vadd (vector (+ (crndf) 0.3) (* (crndf) 2.5) 0) (vector 0 -8.3 0))
+	(vax-root v)
+	#f
+	(vax-type v)))
+      (else v)))
    vs))
 
-;; special id code for inside the syringe
-(define in-syringe -99)
 
-(define (vax-in-syringe vs)
+(define (vax-in-syringe vs type)
+  (define count vax-inject-amount)
   (map
    (lambda (v)
-     (make-vax
-      in-syringe
-      (vector 0 0 0)
-      (vector 0 0 0)
-      (vadd (vector (+ (crndf) 0.3) (* (crndf) 2.5) 0) (vector 0 -8.3 0))
-      (vax-root v)
-      #f))
-   vs))
-
-
-(define (vax-colour! vs col)
-  (for-each
-   (lambda (v)
-     (with-primitive (vax-root v) (colour col)))
+     (cond 
+      ((and (> count 0) (eq? (vax-state v) vax-state-idle))
+       (set! count (- count 1))
+       (with-primitive (vax-root v) (colour (type->col type)))
+       (make-vax
+	vax-state-syringe
+	-1
+	(vector 0 0 0)
+	(vector 0 0 0)
+	(vadd (vector (+ (crndf) 0.3) (* (crndf) 2.5) 0) (vector 0 -8.3 0))
+	(vax-root v)
+	#f type))
+      (else v)))
    vs))
 
 (define (update-vax-swarm vs parasites)
@@ -323,38 +338,41 @@
    (lambda (v)
      (with-primitive
       (vax-root v) 
-      (when (and (not (eq? (vax-pid v) in-syringe)) 
-		 (< (rndf) 0.01))
-	    (hide #t))
       (identity)
-      (if (eq? (vax-pid v) in-syringe) 
+      (if (eq? (vax-state v) vax-state-idle)
+	  (hide #t) (hide #f))
+      (if (eq? (vax-pid v) vax-state-syringe) 
 	  (translate (vadd (vector (crndf) (crndf) 0) (vax-pos v)))
 	  (translate (vax-pos v)))
       (scale (vector 0.5 0.5 0.01)))
 
-     (if (eq? (vax-pid v) in-syringe)
+     (if (not (eq? (vax-state v) vax-state-chasing))
 	 v
 	 (let ((p (parasites-search (vax-pid v) parasites)))
 	   (cond 
 	    (p
 	     (let ((dist (vdist (vax-pos v) (vax-dest v))))
 	       (make-vax
+		(if (< dist vax-collide-distance) vax-state-idle vax-state-chasing)
 		(vax-pid v)
 		(vadd (vax-dest v) (parasite-vel p)) 
 		(calc-vax-swarm (vax-pos v) (vax-vel v) (vax-dest v))
 		(vadd (vax-pos v) (vax-vel v))
 		(vax-root v)
-		(< dist vax-collide-distance))))
+		(< dist vax-collide-distance)
+		(vax-type v))))
 	    (else
 	     (let ((p (choose parasites)))
 	       (with-primitive (vax-root v) (hide #f))
 	       (make-vax
+		vax-state-chasing
 		(parasite-id p)
 		(vadd (parasite-pos p) (receptor-pos (choose (parasite-receptors p))))
 		(vax-vel v)
 		(vax-pos v)
 		(vax-root v)
-		#f)))))))
+		#f
+		(vax-type v))))))))
    vs))
 
 (define (vax-destroyed-list vs)
@@ -446,7 +464,7 @@
   (canvas-setup)
   (resize-canvas canvas)
 
-  (set! vax-swarm-a (vax-inject (build-vax-swarm 200)))
+  (set! vax-swarm-a (vax-inject (build-vax-swarm vax-swarm-size)))
   (set! parasites (build-parasites 3 "A"))
 
   (set! recep (with-state
@@ -457,8 +475,7 @@
 	(make-image-button 
 	 200 540 "vial.png" "" 
 	 (lambda (x) 
-	   (set! vax-swarm-a (vax-in-syringe vax-swarm-a))
-	   (vax-colour! vax-swarm-a (vector 1 0 0))
+	   (set! vax-swarm-a (vax-in-syringe vax-swarm-a "A"))
 	   (when (> (animated-button-time syringe-button) 75)
 		 (set! syringe-button
 		       (animated-button-modify-time 
@@ -469,8 +486,7 @@
 	(make-image-button 
 	 300 540 "vial.png" "" 
 	 (lambda (x) 
-	   (set! vax-swarm-a (vax-in-syringe vax-swarm-a))
-	   (vax-colour! vax-swarm-a (vector 1 1 0))
+	   (set! vax-swarm-a (vax-in-syringe vax-swarm-a "B"))
 	   (when (> (animated-button-time syringe-button) 75)
 		 (set! syringe-button
 		       (animated-button-modify-time 
