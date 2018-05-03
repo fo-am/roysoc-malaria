@@ -251,6 +251,7 @@
    ((zero? (length parasites)) ;; win
     (cond 
      ((> vaccinations 1)
+      (set! vaccination-run 0)
       (fire-popup! "bad" (list (+ "CURED: " vaccinations " VACCINATIONS USED")
 			       "YOU CAN DO BETTER")))
      (else
@@ -261,7 +262,6 @@
 	(fire-popup! "bad" (list "CURED IN ONE: THREE IN A ROW"
 				 "YOU ARE A PRO!")))
        (else
-	(set! vaccination-run 0)
 	(fire-popup! "bad" (list "CURED: SPECIAL VACCINATION DISCOVERED"
 				 "WELL DONE! CAN YOU FIND THREE IN A ROW?"))))))
     (set! new-game-time (+ (time) popup-lifespan))
