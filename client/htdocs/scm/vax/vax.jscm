@@ -28,16 +28,16 @@
    (else receptor-d-col)))
 
 (define parasite-create-distance 10)
-(define parasite-num-receptors 5)
+(define parasite-num-receptors 8)
 
 ;; 85 6d 9b b6
 
 (define parasite-col (vector (/ 0x85 255)
 			     (/ 0x6d 255)
 			     (/ 0x9b 255)))
-(define parasite-repel 0.05)
+(define parasite-repel 0.03)
 (define parasite-cluster -0.002)
-(define parasite-inertia 0.95)
+(define parasite-inertia 0.90)
 (define parasite-max-age 100)
 (define parasite-growth-speed 0.3)
 (define parasite-max-pop 60)
@@ -47,9 +47,9 @@
 
 (define vax-swarm-size 300)
 (define vax-inject-amount 100)
-(define vax-inertia 0.05)
+(define vax-inertia 0.02) ;; 0.05
 (define vax-speed -0.5)
-(define vax-collide-distance 0.5)
+(define vax-collide-distance 2)
 (define vax-rot-speed 13)
 
 (define explosion-max-age 2)
@@ -89,7 +89,8 @@
 (define squash 0.4)
   
 (define (build-receptors n magic pid)
-  (let ((start (* (rndf) 2 3.141)))
+  (let ((start (* (rndf) 2 3.141))
+	(primary (choose receptor-types)))    
     (cons
      (build-receptor 
       (vmul (vector (sin start) (* (cos start) squash) 0) receptor-create-distance)
@@ -102,7 +103,9 @@
 		       (* (cos (+ start (* (/ (+ i 1) n) 2 3.141))) squash)
 		       0)
 	       receptor-create-distance)
-	 (choose receptor-types) pid))))))
+	 (if (> (rndf) 0.75) 
+	     (choose receptor-types) 
+	     primary) pid))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -197,7 +200,7 @@
       ((> (parasite-age p) parasite-max-age)
        (destroy (parasite-root p))
        (if (< (length parasites) parasite-max-pop)
-	   (let ((new-pos (vector (crndf) (crndf) 0)))
+	   (let ((new-pos (vector 1 0 0)))
 	     (append
 	      (list (parasite-spawn 
 		     (vadd (parasite-pos p) 
@@ -233,10 +236,24 @@
 (define (update-parasites parasites)
   (cond 
    ((zero? (length parasites)) ;; win
-    (build-parasites parasites-start-num "A"))
+    (if (> vaxinations 1)
+	(fire-popup! "bad" (list (+ "CURED: " vaxinations " VAXINATIONS USED")
+				 "YOU CAN DO BETTER"))
+	(fire-popup! "bad" (list "CURED: SPECIAL VAXINATION DISCOVERED"
+				 "WELL DONE!")))
+    (set! vaxinations 0)
+    (set! new-game-time (+ (time) popup-lifespan))
+    (set! vax-swarm (vax-idle vax-swarm))
+    (set! current-magic (choose receptor-types))
+    (build-parasites parasites-start-num current-magic))
    ((> (length parasites) parasite-max-pop) ;; lose
+    (set! vaxinations 0)
+    (set! new-game-time (+ (time) popup-lifespan))
+    (fire-popup! "bad" (list "INFECTION OUT OF CONTROL" "TRY AGAIN"))
+    (set! vax-swarm (vax-idle vax-swarm))
+    (set! current-magic (choose receptor-types))
     (parasites-destroy-all parasites)
-    (build-parasites parasites-start-num "A"))
+    (build-parasites parasites-start-num current-magic))
    (else
     (parasites-spawn
      (map
@@ -308,8 +325,8 @@
 	vax-state-chasing
 	-1
 	(vector 0 0 0)
-	(vector 0 (+ 0.3 (* (rndf) 0.5)) 0)
-	(vadd (vector (+ (crndf) 0.3) (* (crndf) 2.5) 0) (vector 0 -8.3 0))
+	(vector 0 (+ 0.1 (* (rndf) 0.2)) 0)
+	(vadd (vector (+ (crndf) 0.3) (* (crndf) 2.5) 0) (vector 0 -13.3 0))
 	(vax-root v)
 	#f
 	(vax-type v)
@@ -317,6 +334,20 @@
       (else v)))
    vs))
 
+(define (vax-idle vs)
+  (map
+   (lambda (v)
+     (make-vax
+      vax-state-idle
+      -1
+      (vector 0 0 0)
+      (vector 0 0 0)
+      (vector 0 0 0)
+      (vax-root v)
+      #f
+      (vax-type v)
+      (random 360)))
+   vs))
 
 (define (vax-in-syringe vs type)
   (define count vax-inject-amount)
@@ -331,7 +362,7 @@
 	-1
 	(vector 0 0 0)
 	(vector 0 0 0)
-	(vadd (vector (+ (crndf) 0.3) (* (crndf) 2.5) 0) (vector 0 -8.3 0))
+	(vadd (vector (crndf) (* (crndf) 2.5) 0) (vector -0.05 -13.3 0))
 	(vax-root v)
 	#f type (random 360)))
       (else v)))
@@ -397,10 +428,13 @@
 		(+ (vax-rot v) vax-rot-speed))))
 	    (else ;; it's died (or first time), find a new one...
 	     (let ((p (vax-choose-parasite/receptor (vax-type v) parasites)))
-	       (if (not p)
+	       (if (not p) ;; no new ones exist
 		   (make-vax
-		    vax-state-idle -1 (vector 0 0 0) (vector 0 0 0)
-		    (vector 0 0 0)
+		    (if (< (rndf) 0.01) vax-state-idle vax-state-chasing) 
+		    -1 
+		    (vax-dest v)  
+		    (calc-vax-swarm (vax-pos v) (vax-vel v) (vax-dest v))
+		    (vadd (vax-pos v) (vax-vel v))
 		    (vax-root v)
 		    #f (vax-type v) (+ (vax-rot v) 1))
 		   (let ((parasite (car p)) 
@@ -444,6 +478,7 @@
 (define (build-explosion pos type)
   (make-explosion pos type 0
 		  (with-state
+		   (hint-nozwrite)
 		   (shader-assign-compiled "explosion")   
 		   (colour (type->col type))
 		   (load-primitive "models/circlefan.obj"))))
@@ -498,6 +533,11 @@
   (image-button-render! vial2-button)
   (image-button-render! vial3-button)
   (image-button-render! vial4-button)
+
+  (progress-bar-render! infect-bar)
+
+  (render-popups!)
+  
   )
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -536,6 +576,7 @@
 (load-mesh-cache "models/circlefan.obj")
 (load-mesh-cache "models/circlemesh.obj")
 (load-mesh-cache "models/circlefansmall.obj")
+(load-mesh-cache "models/malaria-low.obj")
 (load-mesh-cache "models/malaria.obj")
 
 (load-images!
@@ -554,24 +595,40 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define parasites '())
-(define vax-swarm-a '())
+(define vax-swarm '())
 (define explosions '())
 
 (define recep-dummy '())
 (define vax-dummy '())
 
 (define current-vax "red")
+(define current-magic (choose receptor-types))
+
+(define new-game-time (time))
+(define vaxinations 0)
+(define warning-fired 0)
 
 (define (render-game)
   (resize-glcanvas webgl-canvas)
   (resize-canvas canvas)
-  (set! parasites (update-parasites parasites))
-  (set! vax-swarm-a (update-vax-swarm vax-swarm-a parasites))
-  (set! parasites (parasites-destroy parasites (vax-destroyed-list vax-swarm-a)))
-  (set! explosions (explosions-update explosions))
-
   (explosions-render explosions)
 
+  (when (> (time) new-game-time)
+	(set! parasites (update-parasites parasites))
+	(set! vax-swarm (update-vax-swarm vax-swarm parasites))
+	(set! parasites (parasites-destroy parasites (vax-destroyed-list vax-swarm))))
+
+  (set! explosions (explosions-update explosions))
+
+  (let ((p (* (/ (length parasites) parasite-max-pop) 100)))
+    (set! infect-bar (progress-bar-update-p infect-bar p))
+    (when (and (> p 70) (not warning-fired))
+	  (set! warning-fired #t)
+	  (fire-popup! "bad" (list "WARNING:" 
+				   "INFECTION SPREADING!!")))
+    (when (and warning-fired (< p 70)) 
+	  (set! warning-fired #f)))
+  
   (ctx.clearRect 0 0 screen-width screen-height)	  
   (render-canvas)
 
@@ -594,7 +651,7 @@
     (else "vial-d.png"))
    "" 
    (lambda (x) 
-     (set! vax-swarm-a (vax-in-syringe vax-swarm-a type))
+     (set! vax-swarm (vax-in-syringe vax-swarm type))
      (when (> (animated-button-time syringe-button) 75)
 	   (set! syringe-button
 		 (animated-button-modify-time 
@@ -607,8 +664,8 @@
   (canvas-setup)
   (resize-canvas canvas)
 
-  (set! vax-swarm-a (vax-inject (build-vax-swarm vax-swarm-size)))
-  (set! parasites (build-parasites parasites-start-num "A"))
+  (set! vax-swarm (vax-inject (build-vax-swarm vax-swarm-size)))
+  (set! parasites (build-parasites parasites-start-num current-magic))
 
   (set! recep-dummy (with-state
 		     (translate (vector -1000 0 0))
@@ -627,6 +684,7 @@
   (set! vial2-button (build-vial 200 600 "B"))
   (set! vial3-button (build-vial 300 600 "C"))
   (set! vial4-button (build-vial 400 600 "D"))
+  (set! infect-bar (make-progress-bar 30 10 (- screen-width 60) 30 "MALARIA INFECTION:" "20pt Dosis" 50))
   
   (set! syringe-button 
 	(make-animated-button 
@@ -635,12 +693,14 @@
 	 (lambda (x) 
 	   (when (and (eq? (animated-button-state syringe-button) "filling")
 		      (> (animated-button-time syringe-button) 75))
+		 (set! vaxinations (+ vaxinations 1))
 		 (set! syringe-button
 		       (animated-button-modify-time 
 			(animated-button-modify-state 
 			 syringe-button "emptying") 0))				 
-		 (set! vax-swarm-a (vax-inject vax-swarm-a))))))
-  
+		 (set! vax-swarm (vax-inject vax-swarm))))))
+
+  (set-camera-transform (mtranslate (camera-transform) (vector 0 5 0)))
   (clear-colour (list 0.0 0.0 0.0 0.0)))
 
 (define (flot)

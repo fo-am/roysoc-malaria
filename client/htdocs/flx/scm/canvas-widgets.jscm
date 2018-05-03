@@ -236,6 +236,45 @@
     (set! ctx.globalAlpha 1)
     (canvas-init-defaults)))
 
+(define (make-progress-bar x y w h text style p) (list x y w h text style p))
+
+(define (progress-bar-x w) (list-ref w 0))
+(define (progress-bar-y w) (list-ref w 1))
+(define (progress-bar-w w) (list-ref w 2))
+(define (progress-bar-h w) (list-ref w 3))
+(define (progress-bar-text w) (list-ref w 4))
+(define (progress-bar-style w) (list-ref w 5))
+(define (progress-bar-p w) (list-ref w 6))
+(define (progress-bar-update-p w v) (list-replace w 6 v))
+
+(define (progress-bar-render! w)
+  (let ((grd (ctx.createLinearGradient 
+	      (progress-bar-x w) (progress-bar-y w) 
+	      (+ (progress-bar-x w) (progress-bar-w w)) 0)))
+    (set! ctx.strokeStyle "#000")
+    (ctx.strokeRect (progress-bar-x w) (progress-bar-y w) 
+		    (progress-bar-w w) (progress-bar-h w))
+    (set! ctx.globalAlpha 0.5)
+    (grd.addColorStop 0 "#ff0000")
+    (grd.addColorStop 1 "#ffffff")
+    (set! ctx.fillStyle grd)
+    (ctx.fillRect (progress-bar-x w) (progress-bar-y w) 
+		  (* (progress-bar-w w)
+		     (/ (progress-bar-p w) 100))
+		  (progress-bar-h w))
+    (set! ctx.globalAlpha 1)
+    (set! ctx.font (progress-bar-style w))
+    (set! ctx.fillStyle "#000")
+    (let ((txt (string-append (progress-bar-text w) " " (floor (progress-bar-p w)) "%")))
+      (let ((m (ctx.measureText txt)))
+	(ctx.fillText 
+	 txt 
+	 (- (+ (progress-bar-x w) (/ (progress-bar-w w) 2)) (/ m.width 2)) 
+	 (+ (progress-bar-y w) 25))))
+
+    (canvas-init-defaults)))
+
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define (make-popup textbox type time) (list textbox type time))
@@ -257,7 +296,7 @@
 			      (if (eq? type "bad") 
 				  "30pt Dosis" 
 				  "20pt Dosis") 
-			      30 "centre" 
+			      55 "centre" 
 			      text-list)
 			     type
 			     (time)) 
@@ -265,28 +304,29 @@
 
 (define (render-popup! p)
   (let ((tb (popup-textbox p)))
-    (let ((x (if (eq? (popup-type p) "bad")
-		 (- (/ screen-width 2) 200) 150)) 
-	  (y (- (textbox-y tb) (if (eq? (popup-type p) "bad") 50 50)))
-	  (w (if (eq? (popup-type p) "bad") 400 300)) 
-	  (h (if (eq? (popup-type p) "bad") 100 100)))
+    (let ((x (- (/ screen-width 2) 400)) 
+	  (y (- (textbox-y tb) 50))
+	  (w 800) 
+	  (h 130))
       (let ((grd (ctx.createLinearGradient x y (+ x w) (+ y h))))
-	(set! ctx.globalAlpha 0.5)
 	(if (eq? (popup-type p) "bad")
-	    (grd.addColorStop 0 "#a93535")
+	    (grd.addColorStop 0 "#ff0000")
 	    (grd.addColorStop 0 "#359935"))
-	(grd.addColorStop 1 "#eeead1")
+	(grd.addColorStop 1 "#ffffff")
+	(set! ctx.strokeStyle "#000")
+	(ctx.strokeRect x y w h)
+	(set! ctx.globalAlpha 0.5)
 	(set! ctx.fillStyle grd)
 	(ctx.fillRect x y w h)
 	(set! ctx.globalAlpha 1)
 	(canvas-init-defaults)
 	(textbox-render! tb)))))
 
-(define popup-lifespan 2)
+(define popup-lifespan 3)
 
 (define (render-popups!)
-  (for-each (lambda (p) (render-popup! p)) popups-list)
   (when (not (null? popups-list))
+	(render-popup! (car popups-list))
 	(when (> (- (time) (popup-time (car popups-list))) popup-lifespan)
 	      (set! popups-list (cdr popups-list)))))
 
