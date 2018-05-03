@@ -17,7 +17,7 @@ uniform float time;
 void main()
 {
   vec4 wp = ModelViewMatrix * vec4(p,1);
-  vec4 push = texture2D(texture, vec2(wp.x+time*10.0, wp.y+time*1.0)*0.005);
+  vec4 push = texture2D(texture, vec2(wp.x+time*10.0, wp.y+time*1.0)*0.01);
 
   P = vec3(p.x+(push.r-0.5),
 	   p.y+(push.g-0.5),

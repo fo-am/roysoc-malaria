@@ -53,6 +53,7 @@
 (define vax-rot-speed 13)
 
 (define explosion-max-age 2)
+(define explosion-speed 0.05)
 
 ;; posisiton is relative to parasite
 (define (make-receptor type pos parasite-id) 
@@ -71,11 +72,12 @@
    (parent pid)
    (translate pos)
    (hint-nozwrite)
-   (cond 
-    ((eq? type "A") (texture (load-texture "recep-circle.png")))
-    ((eq? type "B") (texture (load-texture "recep-square.png")))
-    ((eq? type "C") (texture (load-texture "recep-tri.png")))
-    (else (texture (load-texture "recep-diamond.png"))))
+   (texture (load-texture "recep-circle.png"))
+   ;; (cond 
+   ;;  ((eq? type "A") (texture (load-texture "recep-circle.png")))
+   ;;  ((eq? type "B") (texture (load-texture "recep-circle.png")))
+   ;;  ((eq? type "C") (texture (load-texture "recep-circle.png")))
+   ;;  (else (texture (load-texture "recep-circle.png"))))
    (shader-assign-compiled "receptor")   
    (load-primitive "models/planesmall.obj"))
   (make-receptor type pos pid))
@@ -125,6 +127,7 @@
    (shader-assign-compiled "parasite")
    (colour parasite-col)
    (texture (load-texture "noise.png"))
+   (translate (vector 1000 0 0))
    (load-primitive "models/malaria.obj")))
 
 ;; lazily reuse primitive ids as parasite ids
@@ -232,28 +235,42 @@
    (lambda (p)
      (destroy (parasite-root p)))
    parasites))
-			   
+
+(define (trnc num)
+  (/ (floor (* num 100)) 100))
+
+    ;; (if (> vaccinations 1)
+    ;; 	(fire-popup! "bad" (list (+ "CURED IN " (trnc (- (time) game-start-time)) " SECS & " vaccinations " VACCINATIONS USED")
+    ;; 				 "YOU CAN DO BETTER"))
+    ;; 	(fire-popup! "bad" (list (+ "CURED IN " (trnc (- (time) game-start-time)) " SECS & SPECIAL VAXINATION DISCOVERED")
+    ;; 				 "WELL DONE!")))
+
+
 (define (update-parasites parasites)
   (cond 
    ((zero? (length parasites)) ;; win
-    (if (> vaxinations 1)
-	(fire-popup! "bad" (list (+ "CURED: " vaxinations " VAXINATIONS USED")
-				 "YOU CAN DO BETTER"))
-	(fire-popup! "bad" (list "CURED: SPECIAL VAXINATION DISCOVERED"
-				 "WELL DONE!")))
-    (set! vaxinations 0)
+    (cond 
+     ((> vaccinations 1)
+      (fire-popup! "bad" (list (+ "CURED: " vaccinations " VACCINATIONS USED")
+			       "YOU CAN DO BETTER")))
+     (else
+      (set! vaccination-run (+ vaccination-run 1))
+      (cond 
+       ((> vaccination-run 2)
+	(set! vaccination-run 0)
+	(fire-popup! "bad" (list "CURED IN ONE: THREE IN A ROW"
+				 "YOU ARE A PRO!")))
+       (else
+	(fire-popup! "bad" (list "CURED: SPECIAL VACCINATION DISCOVERED"
+				 "WELL DONE! CAN YOU FIND THREE IN A ROW?"))))))
     (set! new-game-time (+ (time) popup-lifespan))
-    (set! vax-swarm (vax-idle vax-swarm))
-    (set! current-magic (choose receptor-types))
-    (build-parasites parasites-start-num current-magic))
+    (set! reset-game #t)
+    parasites)
    ((> (length parasites) parasite-max-pop) ;; lose
-    (set! vaxinations 0)
     (set! new-game-time (+ (time) popup-lifespan))
+    (set! reset-game #t)
     (fire-popup! "bad" (list "INFECTION OUT OF CONTROL" "TRY AGAIN"))
-    (set! vax-swarm (vax-idle vax-swarm))
-    (set! current-magic (choose receptor-types))
-    (parasites-destroy-all parasites)
-    (build-parasites parasites-start-num current-magic))
+    parasites)
    (else
     (parasites-spawn
      (map
@@ -487,7 +504,7 @@
   (make-explosion
    (explosion-pos e)
    (explosion-type e)
-   (+ (explosion-age e) 0.1)
+   (+ (explosion-age e) explosion-speed)
    (explosion-root e)))
 
 (define (explosion-render e)
@@ -605,8 +622,22 @@
 (define current-magic (choose receptor-types))
 
 (define new-game-time (time))
-(define vaxinations 0)
+(define vaccinations 0)
 (define warning-fired 0)
+(define game-start-time (time))
+(define reset-game #t)
+(define vaccination-run 0)
+
+(define (reset-game!)
+  (msg (length parasites))
+  (set! reset-game #f)
+  (set! vaccinations 0)
+  (set! warning-fired 0)
+  (set! game-start-time (time))
+  (set! current-magic (choose receptor-types))
+  (set! vax-swarm (vax-idle vax-swarm))
+  (parasites-destroy-all parasites)
+  (set! parasites (build-parasites parasites-start-num current-magic)))
 
 (define (render-game)
   (resize-glcanvas webgl-canvas)
@@ -614,20 +645,21 @@
   (explosions-render explosions)
 
   (when (> (time) new-game-time)
+	(when reset-game (reset-game!))	
 	(set! parasites (update-parasites parasites))
-	(set! vax-swarm (update-vax-swarm vax-swarm parasites))
-	(set! parasites (parasites-destroy parasites (vax-destroyed-list vax-swarm))))
-
+	(set! parasites (parasites-destroy parasites (vax-destroyed-list vax-swarm)))
+	(let ((p (* (/ (length parasites) parasite-max-pop) 100)))
+	  (set! infect-bar (progress-bar-update-p infect-bar p))
+	  (when (and (> p 70) (not warning-fired))
+		(set! warning-fired #t)
+		(fire-popup! "bad" (list "WARNING:" 
+					 "INFECTION SPREADING!!")))
+	  (when (and warning-fired (< p 70)) 
+		(set! warning-fired #f))))
+  
+  (set! vax-swarm (update-vax-swarm vax-swarm parasites))
   (set! explosions (explosions-update explosions))
-
-  (let ((p (* (/ (length parasites) parasite-max-pop) 100)))
-    (set! infect-bar (progress-bar-update-p infect-bar p))
-    (when (and (> p 70) (not warning-fired))
-	  (set! warning-fired #t)
-	  (fire-popup! "bad" (list "WARNING:" 
-				   "INFECTION SPREADING!!")))
-    (when (and warning-fired (< p 70)) 
-	  (set! warning-fired #f)))
+  
   
   (ctx.clearRect 0 0 screen-width screen-height)	  
   (render-canvas)
@@ -680,10 +712,10 @@
 			(shader-assign-compiled "parasite")   
 			(build-cube)))
 
-  (set! vial1-button (build-vial 100 600 "A"))
-  (set! vial2-button (build-vial 200 600 "B"))
-  (set! vial3-button (build-vial 300 600 "C"))
-  (set! vial4-button (build-vial 400 600 "D"))
+  (set! vial1-button (build-vial (- (/ screen-width 2) 200) 600 "A"))
+  (set! vial2-button (build-vial (- (/ screen-width 2) 100) 600 "B"))
+  (set! vial3-button (build-vial (+ (/ screen-width 2) 100) 600 "C"))
+  (set! vial4-button (build-vial (+ (/ screen-width 2) 200) 600 "D"))
   (set! infect-bar (make-progress-bar 30 10 (- screen-width 60) 30 "MALARIA INFECTION:" "20pt Dosis" 50))
   
   (set! syringe-button 
@@ -693,7 +725,7 @@
 	 (lambda (x) 
 	   (when (and (eq? (animated-button-state syringe-button) "filling")
 		      (> (animated-button-time syringe-button) 75))
-		 (set! vaxinations (+ vaxinations 1))
+		 (set! vaccinations (+ vaccinations 1))
 		 (set! syringe-button
 		       (animated-button-modify-time 
 			(animated-button-modify-state 
