@@ -261,12 +261,14 @@
 	(fire-popup! "bad" (list "CURED IN ONE: THREE IN A ROW"
 				 "YOU ARE A PRO!")))
        (else
+	(set! vaccination-run 0)
 	(fire-popup! "bad" (list "CURED: SPECIAL VACCINATION DISCOVERED"
 				 "WELL DONE! CAN YOU FIND THREE IN A ROW?"))))))
     (set! new-game-time (+ (time) popup-lifespan))
     (set! reset-game #t)
     parasites)
    ((> (length parasites) parasite-max-pop) ;; lose
+    (set! vaccination-run 0)
     (set! new-game-time (+ (time) popup-lifespan))
     (set! reset-game #t)
     (fire-popup! "bad" (list "INFECTION OUT OF CONTROL" "TRY AGAIN"))
