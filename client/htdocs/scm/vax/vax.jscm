@@ -68,6 +68,8 @@
 (define explosion-max-age 2)
 (define explosion-speed 0.05)
 
+(define inject-pos (vector 0 -13.3 0))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; building an randomised array of receptor types
 
@@ -368,7 +370,7 @@
 	-1
 	(vector 0 0 0)
 	(vector 0 (+ 0.1 (* (rndf) 0.2)) 0)
-	(vadd (vector (+ (crndf) 0.3) (* (crndf) 2.5) 0) (vector 0 -13.3 0))
+	(vadd (vector (+ (crndf) 0.3) (* (crndf) 2.5) 0) inject-pos)
 	(vax-root v)
 	#f
 	(vax-type v)
@@ -404,7 +406,7 @@
 	-1
 	(vector 0 0 0)
 	(vector 0 0 0)
-	(vadd (vector (crndf) (* (crndf) 2.5) 0) (vector -0.05 -13.3 0))
+	(vadd (vector (crndf) (* (crndf) 2.5) 0) inject-pos)
 	(vax-root v)
 	#f type (random 360)))
       (else v)))
@@ -737,25 +739,27 @@
 			(shader-assign-compiled "parasite")   
 			(build-cube)))
 
-  (set! vial1-button (build-vial (- (/ screen-width 2) 200) 600 "A"))
-  (set! vial2-button (build-vial (- (/ screen-width 2) 100) 600 "B"))
-  (set! vial3-button (build-vial (+ (/ screen-width 2) 100) 600 "C"))
-  (set! vial4-button (build-vial (+ (/ screen-width 2) 200) 600 "D"))
-  (set! infect-bar (make-progress-bar 30 10 (- screen-width 60) 30 "HEALTH:" "20pt Dosis" 50))
-  
-  (set! syringe-button 
-	(make-animated-button 
-	 (/ screen-width 2) 540 "syringe.png" 
-	 "plunger.png" 
-	 (lambda (x) 
-	   (when (and (eq? (animated-button-state syringe-button) "filling")
-		      (> (animated-button-time syringe-button) 75))
-		 (set! vaccinations (+ vaccinations 1))
-		 (set! syringe-button
-		       (animated-button-modify-time 
-			(animated-button-modify-state 
-			 syringe-button "emptying") 0))				 
-		 (set! vax-swarm (vax-inject vax-swarm))))))
+  (let ((ypos (- screen-height 80))
+	(spos (project-point inject-pos)))
+    (set! vial1-button (build-vial (- (/ screen-width 2) 200) ypos "A"))
+    (set! vial2-button (build-vial (- (/ screen-width 2) 100) ypos "B"))
+    (set! vial3-button (build-vial (+ (/ screen-width 2) 100) ypos "C"))
+    (set! vial4-button (build-vial (+ (/ screen-width 2) 200) ypos "D"))
+    (set! infect-bar (make-progress-bar 30 10 (- screen-width 60) 30 "HEALTH:" "20pt Dosis" 50))
+    
+    (set! syringe-button 
+	  (make-animated-button 
+	   (vx spos) (- (vy spos) 80) "syringe.png" 
+	   "plunger.png" 
+	   (lambda (x) 
+	     (when (and (eq? (animated-button-state syringe-button) "filling")
+			(> (animated-button-time syringe-button) 75))
+		   (set! vaccinations (+ vaccinations 1))
+		   (set! syringe-button
+			 (animated-button-modify-time 
+			  (animated-button-modify-state 
+			   syringe-button "emptying") 0))				 
+		   (set! vax-swarm (vax-inject vax-swarm)))))))
 
   (set-camera-transform (mtranslate (camera-transform) (vector 0 5 0)))
   (clear-colour (list 0.0 0.0 0.0 0.0)))
