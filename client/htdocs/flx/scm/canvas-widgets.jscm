@@ -236,6 +236,9 @@
     (set! ctx.globalAlpha 1)
     (canvas-init-defaults)))
 
+(define (clamp l u v)
+  (if (< v l) l (if (> v u) u v)))
+
 (define (make-progress-bar x y w h text style p) (list x y w h text style p))
 
 (define (progress-bar-x w) (list-ref w 0))
@@ -255,23 +258,24 @@
     (ctx.strokeRect (progress-bar-x w) (progress-bar-y w) 
 		    (progress-bar-w w) (progress-bar-h w))
     (set! ctx.globalAlpha 0.5)
-    (grd.addColorStop 0 "#ff0000")
+    (grd.addColorStop 0 "#00ff00")
     (grd.addColorStop 1 "#ffffff")
     (set! ctx.fillStyle grd)
     (ctx.fillRect (progress-bar-x w) (progress-bar-y w) 
 		  (* (progress-bar-w w)
-		     (/ (progress-bar-p w) 100))
+		     (/ (clamp 0 100 (progress-bar-p w)) 100))
 		  (progress-bar-h w))
     (set! ctx.globalAlpha 1)
     (set! ctx.font (progress-bar-style w))
     (set! ctx.fillStyle "#000")
-    (let ((txt (string-append (progress-bar-text w) " " (floor (progress-bar-p w)) "%")))
+    (let ((txt (string-append (progress-bar-text w) " " 
+			      (clamp 0 100 (floor (progress-bar-p w))) "%")))
       (let ((m (ctx.measureText txt)))
 	(ctx.fillText 
 	 txt 
 	 (- (+ (progress-bar-x w) (/ (progress-bar-w w) 2)) (/ m.width 2)) 
 	 (+ (progress-bar-y w) 25))))
-
+    
     (canvas-init-defaults)))
 
 

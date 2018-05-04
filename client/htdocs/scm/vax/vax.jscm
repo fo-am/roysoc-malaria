@@ -55,6 +55,29 @@
 (define explosion-max-age 2)
 (define explosion-speed 0.05)
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; building an randomised array of receptor types
+
+;; careful - no endless loop check
+(define (choose-not l e)
+  (let ((t (choose l)))
+    (if (not (list-contains? e t))
+        t
+        (choose-not l e))))
+
+(define (receptor-array magic size)
+  (let ((primary (choose receptor-types)))
+    (shuffle
+     (append
+      (list magic)
+      (build-list 3 (lambda (_)
+                      (choose-not receptor-types (list magic primary))))
+      (build-list (- size 4)
+                  (lambda (_)
+		    primary))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 ;; posisiton is relative to parasite
 (define (make-receptor type pos parasite-id) 
   (list type pos parasite-id))
@@ -91,23 +114,17 @@
 (define squash 0.4)
   
 (define (build-receptors n magic pid)
-  (let ((start (* (rndf) 2 3.141))
-	(primary (choose receptor-types)))    
-    (cons
-     (build-receptor 
-      (vmul (vector (sin start) (* (cos start) squash) 0) receptor-create-distance)
-      magic pid)
-     (build-list
-      (- n 1)
-      (lambda (i) 
+  (let ((start (* (rndf) 2 3.141)))
+    (let ((array (receptor-array magic n)))
+      (index-map
+       (lambda (i s)
 	(build-receptor 
 	 (vmul (vector (sin (+ start (* (/ (+ i 1) n) 2 3.141))) 
 		       (* (cos (+ start (* (/ (+ i 1) n) 2 3.141))) squash)
 		       0)
 	       receptor-create-distance)
-	 (if (> (rndf) 0.75) 
-	     (choose receptor-types) 
-	     primary) pid))))))
+	 s pid))
+       array))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -239,13 +256,6 @@
 (define (trnc num)
   (/ (floor (* num 100)) 100))
 
-    ;; (if (> vaccinations 1)
-    ;; 	(fire-popup! "bad" (list (+ "CURED IN " (trnc (- (time) game-start-time)) " SECS & " vaccinations " VACCINATIONS USED")
-    ;; 				 "YOU CAN DO BETTER"))
-    ;; 	(fire-popup! "bad" (list (+ "CURED IN " (trnc (- (time) game-start-time)) " SECS & SPECIAL VAXINATION DISCOVERED")
-    ;; 				 "WELL DONE!")))
-
-
 (define (update-parasites parasites)
   (cond 
    ((zero? (length parasites)) ;; win
@@ -253,7 +263,7 @@
      ((> vaccinations 1)
       (set! vaccination-run 0)
       (fire-popup! "bad" (list (+ "CURED: " vaccinations " VACCINATIONS USED")
-			       "YOU CAN DO BETTER")))
+			       "CAN YOU DO BETTER?")))
      (else
       (set! vaccination-run (+ vaccination-run 1))
       (cond 
@@ -651,7 +661,7 @@
 	(set! parasites (update-parasites parasites))
 	(set! parasites (parasites-destroy parasites (vax-destroyed-list vax-swarm)))
 	(let ((p (* (/ (length parasites) parasite-max-pop) 100)))
-	  (set! infect-bar (progress-bar-update-p infect-bar p))
+	  (set! infect-bar (progress-bar-update-p infect-bar (- 100 p)))
 	  (when (and (> p 70) (not warning-fired))
 		(set! warning-fired #t)
 		(fire-popup! "bad" (list "WARNING:" 
@@ -718,7 +728,7 @@
   (set! vial2-button (build-vial (- (/ screen-width 2) 100) 600 "B"))
   (set! vial3-button (build-vial (+ (/ screen-width 2) 100) 600 "C"))
   (set! vial4-button (build-vial (+ (/ screen-width 2) 200) 600 "D"))
-  (set! infect-bar (make-progress-bar 30 10 (- screen-width 60) 30 "MALARIA INFECTION:" "20pt Dosis" 50))
+  (set! infect-bar (make-progress-bar 30 10 (- screen-width 60) 30 "HEALTH:" "20pt Dosis" 50))
   
   (set! syringe-button 
 	(make-animated-button 
