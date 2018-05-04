@@ -772,5 +772,9 @@
 	 (run-init)	 
 	 (every-frame render-game)))
 
+(canvas-setup)
+(resize-canvas canvas)
+(ctx.fillText "Loading..." 100 100)
+
 (every-frame (flot))
 	 
