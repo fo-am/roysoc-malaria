@@ -649,24 +649,91 @@ ditto.compile_code_unparsed = function(scheme_code) {
     return ditto.comp(parse_tree);
 };
 
+////////////////////////////////////////////////////
+// resource loading
+
+ditto.load_resource_static = false;
+
+// resource file map of filenames to data, ascii or base64 encoded binary
+ditto.resources = {}
+
+function init_resources(resources) {
+    ditto.load_resource_static = true;
+    ditto.resources = resources;
+}
+
+// single point of entry for all loading
+function load_resource_txt(url, loadedfn) {
+    if (ditto.load_resource_static) {
+	var ret = ditto.resources[url];
+	if (ret==undefined) {
+	    ditto.to_page("output","error loading statically: "+url+" has not been embedded");
+	} else {
+	    loadedfn(ret);
+	}
+    } else {
+	var xmlHttp = new XMLHttpRequest();
+	xmlHttp.addEventListener("load", function() {
+	    loadedfn(xmlHttp.responseText);
+	});
+	xmlHttp.open("GET", url);
+	xmlHttp.overrideMimeType("script");
+	xmlHttp.send(null);
+    }
+}
+
+ditto.load_resource_txt_badly = function(url) {
+    if (ditto.load_resource_static) {
+	var ret = ditto.resources[url];
+	if (ret==undefined) {
+	    ditto.to_page("output","error loading statically: "+url+" has not been embedded");
+	} else {
+	    return ret;
+	}
+    } else {
+	var xmlHttp = new XMLHttpRequest();
+	xmlHttp.open("GET", url, false);
+	xmlHttp.overrideMimeType("script");
+	xmlHttp.send(null);
+	return xmlHttp.responseText;
+    }
+}
+
+function load_resource_img(url, loadedfn) {
+    if (ditto.load_resource_static) {
+	var ret = ditto.resources[url];
+	if (ret==undefined) {
+	    ditto.to_page("output","error loading statically: "+url+" has not been embedded");
+	} else {
+	    var image = new Image();
+	    image.src="data:image/png;base64,"+ret;
+	    // still need to wait to process data url
+	    image.onload = function() {
+		loadedfn(image);
+	    }
+	}
+    } else {
+	var image = new Image();
+	image.onload = function() {
+	    loadedfn(image);
+	};
+	image.src = url;
+    }
+}
+
+/////////////////////////////////////////////////////////
+// loading code - todo: make these asyncronous
+
 ditto.load = function(url) {
     ditto.current_file.push(url);
-    var xmlHttp = new XMLHttpRequest();
-    xmlHttp.open( "GET", url, false );
-    xmlHttp.overrideMimeType("script");
-    xmlHttp.send( null );
-    var str=xmlHttp.responseText;
+    var str=ditto.load_resource_txt_badly(url);
     var ret= "\n/////////////////// "+url+"\n"+ditto.compile_code(str)+"\n";
     ditto.current_file.pop();
     return ret;
 };
 
 ditto.load_unparsed = function(url) {
-    var xmlHttp = new XMLHttpRequest();
-    xmlHttp.open( "GET", url, false );
-    xmlHttp.overrideMimeType("script");
-    xmlHttp.send( null );
-    var str=xmlHttp.responseText;
+    var str=ditto.load_resource_txt_badly(url);
     return "\n/////////////////// "+url+"\n"+ditto.compile_code_unparsed(str)+"\n";
 };
 
@@ -686,6 +753,26 @@ ditto.to_page = function(id,html)
     document.getElementById(id).appendChild(div);*/
     console.log("ditto says: ("+ditto.get_current_file()+") "+html);
 };
+
+// this needs to go somewhere else
+function shuffle(array) {
+  var currentIndex = array.length, temporaryValue, randomIndex;
+  var new_array = new Array(array.length);
+  // While there remain elements to shuffle...
+  while (0 !== currentIndex) {
+
+    // Pick a remaining element...
+    randomIndex = Math.floor(Math.random() * currentIndex);
+    currentIndex -= 1;
+
+    // And swap it with the current element.
+    new_array[currentIndex] = array[randomIndex];
+    new_array[randomIndex] = array[currentIndex];
+  }
+
+  return new_array;
+}
+
 
 function init(filenames) {
     jQuery(document).ready(function($) {
@@ -709,6 +796,37 @@ function init(filenames) {
         });
 
 	js+="crank()";
+
+        try {
+            //eval(js);
+            setTimeout(js,0);
+	    //console.log(js);
+        } catch (e) {
+	    //console.log(js);
+            console.log(e);
+            console.log(e.stack);
+            ditto.to_page("output", "Error: "+e);	
+            ditto.to_page("output", "Error: "+e.stack);	
+        }
+    });
+};
+
+function init_static(syntax,source) {
+    jQuery(document).ready(function($) {
+
+        // load and compile the syntax parser
+        var syntax_parse=ditto.compile_code_unparsed(syntax);
+        try {
+            //console.log(syntax_parse);
+            do_syntax=eval(syntax_parse);
+        } catch (e) {
+            console.log("An error occured parsing (syntax) of "+syntax_parse);
+            console.log(e);
+            console.log(e.stack);
+        }
+
+        var js=ditto.compile_code(source);
+	js+="; crank();";
 
         try {
             //eval(js);
@@ -759,20 +877,3 @@ function scheme_eval(filenames,code) {
     setTimeout(js,0);
 };
 
-function shuffle(array) {
-  var currentIndex = array.length, temporaryValue, randomIndex;
-  var new_array = new Array(array.length);
-  // While there remain elements to shuffle...
-  while (0 !== currentIndex) {
-
-    // Pick a remaining element...
-    randomIndex = Math.floor(Math.random() * currentIndex);
-    currentIndex -= 1;
-
-    // And swap it with the current element.
-    new_array[currentIndex] = array[randomIndex];
-    new_array[randomIndex] = array[currentIndex];
-  }
-
-  return new_array;
-}

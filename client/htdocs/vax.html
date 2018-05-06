@@ -29,38 +29,10 @@
     <script src="flx/js/ditto.js"></script>
 
     <script>
-      function show_code() {
-          $('.code-container').show(); 
-          $('#show-code-button').hide(); 
-          // Refresh CodeMirror
-          $('.CodeMirror').each(function(i, el){ 
-              el.CodeMirror.refresh(); 
-          });      
-      }
-
-      function hide_code() {
-          $('.code-container').hide(); 
-          $('#show-code-button').show();
-      }
-
-      var editor=0;
-
-      function run_code() {
-          scheme_eval(["flx/scm/fluxus.jscm"],editor.getValue());
-      }
-
       $( document ).ready(function() {
-          var xmlHttp = new XMLHttpRequest();
-          xmlHttp.open( "GET", "scm/vax/vax.jscm", false );
-          xmlHttp.overrideMimeType("script");
-          xmlHttp.send( null );
-          $('#code').html(xmlHttp.responseText);
-
-          editor = CodeMirror.fromTextArea($("#code")[0], {
-             mode: "scheme"
-          });
-
-          init(["flx/scm/fluxus.jscm","scm/vax/vax.jscm"]);    
+      //init(["scm/vax/vax.jscm"]);
+          init_resources({{RESOURCES}});
+          init_static('{{SYNTAX}}','{{CODE}}');    
       });
     </script>
 </body>

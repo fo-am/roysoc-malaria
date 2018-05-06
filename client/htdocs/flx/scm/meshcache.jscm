@@ -35,15 +35,19 @@
     (set! meshes-total-load (+ meshes-total-load 1))
     (cond
      ((eq? type "obj")
-      (load-obj name 
-		(lambda (data)
-		  (set! meshes-load-outstanding (- meshes-load-outstanding 1))
-		  (set! mesh-cache (cons (list name data) mesh-cache)))))
+      (load-resource-txt 
+       name 
+       (lambda (data)
+	 (let ((data (inner-load-obj data)))
+	   (set! meshes-load-outstanding (- meshes-load-outstanding 1))
+	   (set! mesh-cache (cons (list name data) mesh-cache))))))
      (else
-      (load-ply name 
-		(lambda (data)
-		  (set! meshes-load-outstanding (- meshes-load-outstanding 1))
-		  (set! mesh-cache (cons (list name data) mesh-cache))))))))
+      (load-resource-txt 
+       name 
+       (lambda (data)
+	 (let ((data (inner-load-ply data)))
+	   (set! meshes-load-outstanding (- meshes-load-outstanding 1))
+	   (set! mesh-cache (cons (list name data) mesh-cache)))))))))
 
 (define (mesh-cache-search name)
   (let ((mesh (assoc name mesh-cache)))

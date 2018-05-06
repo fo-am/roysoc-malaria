@@ -14,6 +14,7 @@
 ;; You should have received a copy of the GNU Affero General Public License
 ;; along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+(load "flx/scm/fluxus.jscm")
 (load "flx/scm/canvas.jscm")
 (load "flx/scm/canvas-widgets.jscm")
 
@@ -604,15 +605,9 @@
 		"shaders/explosion.frag")
 
 
-(load-texture "mal1-1.png")
-(load-texture "mal1-2.png")
-(load-texture "mal1-3.png")
 (load-texture "circle-trans.png")
 (load-texture "noise.png")
-(load-texture "recep-square.png")
 (load-texture "recep-circle.png")
-(load-texture "recep-tri.png")
-(load-texture "recep-diamond.png")
 (load-texture "vax.png")
 
 (load-mesh-cache "models/plane.obj")

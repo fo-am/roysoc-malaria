@@ -1,3 +1,12 @@
+function force_load_ply(url) {
+    var xmlHttp = new XMLHttpRequest();
+    xmlHttp.open( "GET", url, false );
+    xmlHttp.overrideMimeType("script");
+    xmlHttp.send( null );
+    var str=xmlHttp.responseText;
+    return inner_load_ply(xmlHttp.responseText);
+}
+
 // PLY object
 function PLY() { this.object; }
 
@@ -218,22 +227,3 @@ function inner_load_ply(data) {
     // ];
 }
 
-function load_ply(url, loadedfn) {
-    var xmlHttp = new XMLHttpRequest();
-    xmlHttp.addEventListener("load",function() {
-	var str=xmlHttp.responseText;
-	loadedfn(inner_load_ply(str));
-    });
-    xmlHttp.open("GET", url);
-    xmlHttp.overrideMimeType("script");
-    xmlHttp.send();
-}
-
-function force_load_ply(url) {
-    var xmlHttp = new XMLHttpRequest();
-    xmlHttp.open( "GET", url, false );
-    xmlHttp.overrideMimeType("script");
-    xmlHttp.send( null );
-    var str=xmlHttp.responseText;
-    return inner_load_ply(xmlHttp.responseText);
-}

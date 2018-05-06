@@ -21,21 +21,13 @@
 (define (shaders-loaded?)
   (eq? shaders-load-outstanding 0))
 
-(define (load-text url loadedfn)
-  (let ((xmlHttp (js "new XMLHttpRequest()")))
-    (xmlHttp.addEventListener 
-     "load" (lambda () (loadedfn xmlHttp.responseText)))
-    (xmlHttp.open "GET"  url)
-    (xmlHttp.overrideMimeType "script")
-    (xmlHttp.send)))
-
 (define (internal-load-shader-cache gl name attrib-names vert frag)
   (set! shaders-load-outstanding (+ shaders-load-outstanding 1))
   (set! shaders-total-load (+ shaders-total-load 1))
-  (load-text 
+  (load-resource-txt 
    vert
    (lambda (vert-code)
-     (load-text
+     (load-resource-txt
       frag
       (lambda (frag-code)		
 	(set! shaders-load-outstanding (- shaders-load-outstanding 1))

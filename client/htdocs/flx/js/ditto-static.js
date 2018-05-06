@@ -565,6 +565,7 @@ ditto.core_forms = function(fn, args) {
     if (fn == "load") {
         //var v=ditto.comp(ditto.car(args));
         //return ditto.load(v.substring(1,v.length-1));
+	return ";";
     }
 
     return false;
@@ -725,9 +726,40 @@ function init(filenames) {
     });
 };
 
+function init_static() {
+    jQuery(document).ready(function($) {
+
+        // load and compile the syntax parser
+        var syntax_parse=ditto.compile_code_unparsed('{{SYNTAX}}');
+        try {
+            //console.log(syntax_parse);
+            do_syntax=eval(syntax_parse);
+        } catch (e) {
+            console.log("An error occured parsing (syntax) of "+syntax_parse);
+            console.log(e);
+            console.log(e.stack);
+        }
+
+	var js=ditto.compile_code('{{CODE}}');
+	js+="; crank();";
+
+        try {
+            //eval(js);
+            setTimeout(js,0);
+	    //console.log(js);
+        } catch (e) {
+	    //console.log(js);
+            console.log(e);
+            console.log(e.stack);
+            ditto.to_page("output", "Error: "+e);	
+            ditto.to_page("output", "Error: "+e.stack);	
+        }
+    });
+};
+
 function scheme_eval(filenames,code) {
     // load and compile the syntax parser
-    var syntax_parse={{SYNTAX}}
+    var syntax_parse=ditto.compile_code_unparsed('{{SYNTAX}}');
     try {
         //console.log(syntax_parse);
         do_syntax=eval(syntax_parse);
@@ -742,7 +774,7 @@ function scheme_eval(filenames,code) {
     var js="try { cancelAnimationFrame(crank);\n";
 
     // insert code here
-    js+={{CODE}}
+    js+=ditto.compile_code('{{CODE}}');
 
     js+="\n"+ditto.compile_code(code)+"\n";
 

@@ -1,14 +1,3 @@
-function load_obj(url, loadedfn) {
-    var xmlHttp = new XMLHttpRequest();
-    xmlHttp.addEventListener("load",function() {
-	var str=xmlHttp.responseText;
-	loadedfn(inner_load_obj(str));
-    });
-    xmlHttp.open("GET", url);
-    xmlHttp.overrideMimeType("script");
-    xmlHttp.send();
-}
-
 function force_load_obj(url) {
     var xmlHttp = new XMLHttpRequest();
     xmlHttp.open( "GET", url, false );
