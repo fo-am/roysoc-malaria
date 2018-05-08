@@ -1,0 +1,215 @@
+;; -*- mode: scheme; -*-
+;; Royal Soc Malaria Copyright (C) 2018 FoAM Kernow
+
+;; This program is free software: you can redistribute it and/or modify
+;; it under the terms of the GNU Affero General Public License as
+;; published by the Free Software Foundation, either version 3 of the
+;; License, or (at your option) any later version.
+;;
+;; This program is distributed in the hope that it will be useful,
+;; but WITHOUT ANY WARRANTY; without even the implied warranty of
+;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+;; GNU Affero General Public License for more details.
+;;
+;; You should have received a copy of the GNU Affero General Public License
+;; along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+(load "flx/scm/fluxus.jscm")
+(load "flx/scm/canvas.jscm")
+(load "flx/scm/canvas-widgets.jscm")
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define lifespan (* 70 365))
+(define D 30)
+(define beta 1)
+(define R0 (/ beta (+ (/ 1 lifespan) (/ 1 D))))
+
+(define (predY P phiD phiB beta)
+  (let ((mu (/ 1 lifespan)))
+    (max 0 (* mu (- (* (- 1 P) (- 1 phiD) D)
+                    (/ 1 (* (- 1.000001 phiB) beta)))))))
+
+(define num-people 1000)
+(define infected-threshold 0.0001)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define (read-map x y) 
+  (let ((t (map-ctx.getImageData x (- 512 y) 1 1)))
+    (list-ref t.data 0)))
+
+(define (generate-map-pos)
+  (let ((p (vmul (vector (rndf) (rndf) 0) 512)))
+    (let ((d (read-map (vx p) (vy p))))
+      (if (< (* (rndf) 255) (* (square (/ d 255)) 255))
+	  ;; return density squashed to 0-50
+	  (list (* d (/ 50 255)) p) (generate-map-pos)))))
+
+(define (make-person pos infected density root) (list pos infected density root))
+(define (person-pos p) (list-ref p 0))
+(define (person-infected p) (list-ref p 1))
+(define (person-density p) (list-ref p 2))
+(define (person-root p) (list-ref p 3))
+
+(define (build-person density pos)
+  (make-person
+   pos
+   #f
+   density
+   (with-state
+    (colour (vector 1 1 1))
+    (shader-assign-compiled "person")
+    (translate (vmul (vsub pos (vector 256 256 0)) 0.05))
+    (load-primitive "models/plane.obj"))))
+
+(define (update-person p y)
+  (with-primitive 
+   (person-root p)
+   (if (> y infected-threshold)
+       (colour (vector 1 0 0))
+       (colour (vector 1 1 1))))
+  p)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; 2D schenanigans
+
+(define vaccination-slider 
+  (make-slider 50 550 300 (- 300 90)
+	       (lambda (v)
+		 (set! vaccination (/ v 300))
+		 (clamp-sliders!)
+		 )))
+
+(define drugs-slider 
+  (make-slider 50 600 300 (- 300 90)
+	       (lambda (v)
+		 (set! drugs (/ v 300))
+		 (clamp-sliders!)
+		 )))
+
+(define bednets-slider 
+  (make-slider 50 650 300 (- 300 90)
+	       (lambda (v)
+		 (set! bednets (/ v 300))
+		 (clamp-sliders!)
+		 )))
+
+(define (clamp-sliders!)
+  (set! people
+  	(map
+  	 (lambda (p)
+  	   (update-person 
+  	    p 
+  	    (predY vaccination drugs bednets (person-density p))))
+  	 people))
+
+  (let ((vs (/ (slider-p vaccination-slider) 300))
+	(ds (/ (slider-p drugs-slider) 300))
+	(bs (/ (slider-p bednets-slider) 300)))
+    (let ((mag (sqrt (+ (square vs) (square ds) (square bs)))))
+      (when (> mag 1)
+	    (set! vaccination-slider (slider-update-p vaccination-slider (* (/ vs mag) 300)))
+	    (set! drugs-slider (slider-update-p drugs-slider (* (/ ds mag) 300)))
+	    (set! bednets-slider (slider-update-p bednets-slider (* (/ bs mag) 300))))))
+  )
+
+(define (render-canvas)
+  (set! vaccination-slider (slider-update vaccination-slider))
+  (slider-render! vaccination-slider)
+  (set! drugs-slider (slider-update drugs-slider))
+  (slider-render! drugs-slider)
+  (set! bednets-slider (slider-update bednets-slider))
+  (slider-render! bednets-slider))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; preload things
+
+(shader-compile "default" (list "p" "n" "t" "c")
+		"shaders/default.vert"
+		"shaders/default.frag")
+(shader-compile "person" (list "p" "n" "t" "c")
+		"shaders/person.vert"
+		"shaders/person.frag")
+
+(load-texture "map.png")
+(load-mesh-cache "models/circlefan.obj")
+(load-mesh-cache "models/plane.obj")
+
+(load-images!
+ (list
+  "vial-a.png"
+  )
+ (lambda ()
+   0))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define people '())
+
+(define (reset-game!)
+  0)
+
+(define vaccination 0.6)
+(define drugs 0)
+(define bednets 0)
+
+(define (render-game)
+  (resize-glcanvas webgl-canvas)
+  (resize-canvas canvas)
+  
+  (ctx.clearRect 0 0 screen-width screen-height)	  
+  (render-canvas)  
+  )
+
+(define init #f)
+(define map-canvas 0)
+(define map-ctx 0)
+
+(define (run-init)
+  (resize-glcanvas webgl-canvas)
+  (canvas-setup)
+  (resize-canvas canvas)
+
+  ;; draw the map into a context so we can read pixels
+  ;; out of it...
+  ;; need to load it from static data due to cross origin rules
+  (load-resource-img 
+   "textures/map.png" 
+   (lambda (img)
+     (set! map-canvas (document.createElement "canvas"))
+     (set! map-canvas.width img.width)
+     (set! map-canvas.height img.height)
+     (msg img.width)
+     (msg img.height)
+     (set! map-ctx (map-canvas.getContext "2d")) 
+     (map-ctx.drawImage img 0 0)
+     (set! people 
+	   (build-list 
+	    num-people
+	    (lambda (i) 
+	      (let ((t (generate-map-pos)))
+		(msg 
+		 (predY vaccination drugs bednets (car t)))
+		(build-person (car t) (cadr t))))))))
+  
+;;  (set-camera-transform (mtranslate (camera-transform) (vector 0 5 0)))
+  (clear-colour (list 0.0 0.0 0.0 0.0)))
+
+(define (flot)
+  (when  (and
+	  (not init)
+;;	  (meshes-loaded?)
+	  (textures-loaded?)
+	  (shaders-loaded?)
+	  (canvas-loaded?)
+	  )
+	 (set! init #t)
+	 (run-init)	 
+	 (every-frame render-game)))
+
+(resize-canvas canvas)
+(ctx.fillText "Loading..." 100 100)
+
+(every-frame (flot))
+	 
