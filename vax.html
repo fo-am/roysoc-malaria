@@ -789,7 +789,12 @@ ret\n\
   (set! current-magic (choose receptor-types))\n\
   (set! vax-swarm (vax-idle vax-swarm))\n\
   (parasites-destroy-all parasites)\n\
-  (set! parasites (build-parasites parasites-start-num current-magic)))\n\
+  (set! parasites (build-parasites parasites-start-num current-magic))\n\
+  (when (eq? (animated-button-state syringe-button) "filling")\n\
+	(set! syringe-button\n\
+	      (animated-button-modify-time \n\
+	       (animated-button-modify-state \n\
+		syringe-button "emptying") 0))))\n\
 \n\
 (define (render-game)\n\
   (resize-glcanvas webgl-canvas)\n\
@@ -838,7 +843,7 @@ ret\n\
     (else "vial-f.png"))\n\
    "" \n\
    (lambda (x) \n\
-     (when (not reset-game)\n\
+     (when (and (not reset-game) (not (eq? (animated-button-state syringe-button) "filling")))\n\
 	   (set! vax-swarm (vax-in-syringe vax-swarm type))\n\
 	   (when (> (animated-button-time syringe-button) 75)\n\
 		 (set! syringe-button\n\
