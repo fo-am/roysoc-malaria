@@ -19,7 +19,7 @@
 (load "flx/scm/canvas-widgets.jscm")
 
 (define receptor-create-distance 0.5)
-(define receptor-types (list "A" "B" "C" "D"))
+(define receptor-types (list "A" "B" "C" "D" "E" "F"))
 
 (define (hex->col r g b) (vector (/ r 255) (/ g 255) (/ b 255)))
 
@@ -28,18 +28,23 @@
 ;7be0ad ff green
 ;0081af ff blue
 ;f61067 ff pink
+; 85 6d 9b b6
 
 (define receptor-a-col (hex->col 0xd2 0xe0 0x49))
 (define receptor-b-col (hex->col 0x44 0x45 0x45))
 (define receptor-c-col (hex->col 0x7b 0xe0 0xad))
 (define receptor-d-col (hex->col 0x00 0x81 0xaf))
+(define receptor-e-col (hex->col 0xf6 0x10 0x67))
+(define receptor-f-col (hex->col 0xf7 0x92 0x56))
 
 (define (type->col type)
   (cond 
    ((eq? type "A") receptor-a-col)
    ((eq? type "B") receptor-b-col)
    ((eq? type "C") receptor-c-col)
-   (else receptor-d-col)))
+   ((eq? type "D") receptor-d-col)
+   ((eq? type "E") receptor-e-col)
+   (else receptor-f-col)))
 
 (define parasite-create-distance 10)
 (define parasite-num-receptors 8)
@@ -54,6 +59,7 @@
 (define parasite-inertia 0.90)
 (define parasite-max-age 100)
 (define parasite-growth-speed 0.3)
+(define parasite-death-speed 3)
 (define parasite-max-pop 60)
 (define parasite-spawn-distance 1)
 
@@ -63,7 +69,7 @@
 (define vax-inject-amount 100)
 (define vax-inertia 0.02) ;; 0.05
 (define vax-speed -0.5)
-(define vax-collide-distance 2)
+(define vax-collide-distance 1)
 (define vax-rot-speed 13)
 
 (define explosion-max-age 2)
@@ -122,37 +128,40 @@
   (make-receptor type pos pid))
 
 (define (receptors-clone rs pid)
-  (map
-   (lambda (r)
-     (build-receptor (receptor-pos r) (receptor-type r) pid))
-   rs))
+  (build-receptors 
+   (length rs) 
+   (shuffle (map (lambda (r) (receptor-type r)) rs)) pid))
 
 (define squash 0.4)
   
-(define (build-receptors n magic pid)
+(define (init-receptors n magic pid)
+  (build-receptors n (receptor-array magic n) pid))
+
+(define (build-receptors n array pid)
   (let ((start (* (rndf) 2 3.141)))
-    (let ((array (receptor-array magic n)))
-      (index-map
-       (lambda (i s)
-	(build-receptor 
-	 (vmul (vector (sin (+ start (* (/ (+ i 1) n) 2 3.141))) 
-		       (* (cos (+ start (* (/ (+ i 1) n) 2 3.141))) squash)
-		       0)
-	       receptor-create-distance)
-	 s pid))
-       array))))
+    (index-map
+     (lambda (i s)
+       (build-receptor 
+	(vmul (vector (sin (+ start (* (/ (+ i 1) n) 2 3.141))) 
+		      (* (cos (+ start (* (/ (+ i 1) n) 2 3.141))) squash)
+		      0)
+	      receptor-create-distance)
+	s pid))
+     array)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define (make-parasite id pos vel age receptors root)
-	(list id pos vel age receptors root))
+(define (make-parasite id pos vel age receptors state root)
+	(list id pos vel age receptors state root))
 
 (define (parasite-id p) (list-ref p 0))
 (define (parasite-pos p) (list-ref p 1))
 (define (parasite-vel p) (list-ref p 2))
 (define (parasite-age p) (list-ref p 3))
 (define (parasite-receptors p) (list-ref p 4))
-(define (parasite-root p) (list-ref p 5))
+(define (parasite-state p) (list-ref p 5))
+(define (parasite-modify-state p v) (list-replace p 5 v))
+(define (parasite-root p) (list-ref p 6))
 
 (define (parasite-prim)
   (with-state
@@ -170,7 +179,8 @@
      pid pos 
      (vector 0 0 0) 
      (* (rndf) 100)
-     (build-receptors parasite-num-receptors magic pid)
+     (init-receptors parasite-num-receptors magic pid)
+     "alive"
      pid)))
 
 (define (parasite-spawn pos parent-receptors)
@@ -179,8 +189,8 @@
      pid pos 
      (vector 0 0 0) 
      (random 10)
-     ;; todo: inherit
-     (receptors-clone parent-receptors pid)
+     (shuffle (receptors-clone parent-receptors pid))
+     "alive"
      pid)))
 
 (define (parasite-closest parasite p)
@@ -225,8 +235,11 @@
      (parasite-id p)
      (vadd (parasite-pos p) new-vel)
      new-vel
-     (+ (parasite-age p) parasite-growth-speed) 
+     (if (eq? (parasite-state p) "alive")
+	 (+ (parasite-age p) parasite-growth-speed) 
+	 (- (parasite-age p) parasite-death-speed))
      (parasite-receptors p)
+     (parasite-state p)
      (parasite-root p))))
 
 (define (parasites-spawn parasites)
@@ -252,11 +265,30 @@
    '()
    parasites))
 
-(define (parasites-destroy parasites destroyed)
+(define (parasites-death parasites destroyed)
+  (map
+   (lambda (p)
+     (if (list-contains? destroyed (parasite-id p))
+	 (parasite-modify-state p "dead") p))
+   parasites))
+
+;; (define (parasites-destroy parasites destroyed)
+;;   (foldl
+;;    (lambda (p r)
+;;      (cond 
+;;       ((list-contains? destroyed (parasite-id p))
+;;        (destroy (parasite-root p))
+;;        r)
+;;       (else (cons p r))))
+;;    '()
+;;    parasites))
+
+(define (parasites-destroy parasites)
   (foldl
    (lambda (p r)
      (cond 
-      ((list-contains? destroyed (parasite-id p))
+      ((and (eq? (parasite-state p) "dead")
+	    (< (parasite-age p) 0))
        (destroy (parasite-root p))
        r)
       (else (cons p r))))
@@ -424,7 +456,7 @@
 (define (vax-choose-parasite/receptor type parasites)
   (foldl
    (lambda (p r)
-     (if (not r)
+     (if (and (not r) (eq? (parasite-state p) "alive"))
 	 (let ((receptor (vax-choose-receptor type (parasite-receptors p))))
 	   (if receptor (list p receptor) #f))
 	 r))
@@ -457,7 +489,7 @@
 	  (+ (vax-rot v) vax-rot-speed))
 	 (let ((p (parasites-search (vax-pid v) parasites)))
 	   (cond 
-	    (p ;; still alive - keep chasing
+	    ((and p (eq? (parasite-state p) "alive")) ;; still alive - keep chasing
 	     (let ((dist (vdist (vax-pos v) (vax-dest v))))
 	       (when (< dist vax-collide-distance)	
 		     (set! explosions (explosions-add explosions (vax-dest v) (vax-type v))))
@@ -571,6 +603,8 @@
   (image-button-update vial2-button 0)
   (image-button-update vial3-button 0)
   (image-button-update vial4-button 0)
+  (image-button-update vial5-button 0)
+  (image-button-update vial6-button 0)
   (animated-button-update syringe-button 0)
 
   (animated-button-render! syringe-button)
@@ -578,6 +612,8 @@
   (image-button-render! vial2-button)
   (image-button-render! vial3-button)
   (image-button-render! vial4-button)
+  (image-button-render! vial5-button)
+  (image-button-render! vial6-button)
 
   (progress-bar-render! infect-bar)
 
@@ -627,6 +663,8 @@
   "vial-b.png"
   "vial-c.png"
   "vial-d.png"
+  "vial-e.png"
+  "vial-f.png"
   )
  (lambda ()
    0))
@@ -669,7 +707,8 @@
   (when (> (time) new-game-time)
 	(when reset-game (reset-game!))	
 	(set! parasites (update-parasites parasites))
-	(set! parasites (parasites-destroy parasites (vax-destroyed-list vax-swarm)))
+	(set! parasites (parasites-death parasites (vax-destroyed-list vax-swarm)))
+	(set! parasites (parasites-destroy parasites))
 	(let ((p (* (/ (length parasites) parasite-max-pop) 100)))
 	  (set! infect-bar (progress-bar-update-p infect-bar (- 100 p)))
 	  (when (and (> p 70) (not warning-fired))
@@ -701,8 +740,10 @@
    (cond 
     ((eq? type "A") "vial-a.png")
     ((eq? type "B") "vial-b.png")
-    ((eq? type "C") "vial-c.png")
-    (else "vial-d.png"))
+    ((eq? type "C") "vial-c.png") 
+    ((eq? type "D") "vial-d.png")
+    ((eq? type "E") "vial-e.png")
+    (else "vial-f.png"))
    "" 
    (lambda (x) 
      (set! vax-swarm (vax-in-syringe vax-swarm type))
@@ -740,6 +781,8 @@
     (set! vial2-button (build-vial (- (/ screen-width 2) 100) ypos "B"))
     (set! vial3-button (build-vial (+ (/ screen-width 2) 100) ypos "C"))
     (set! vial4-button (build-vial (+ (/ screen-width 2) 200) ypos "D"))
+    (set! vial5-button (build-vial (+ (/ screen-width 2) 300) ypos "E"))
+    (set! vial6-button (build-vial (- (/ screen-width 2) 300) ypos "F"))
     (set! infect-bar (make-progress-bar 30 10 (- screen-width 60) 30 "HEALTH:" "20pt Dosis" 50))
     
     (set! syringe-button 
