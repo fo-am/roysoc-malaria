@@ -125,6 +125,8 @@ ret\n\
 \n\
 (define num-people 1000)\n\
 (define infected-threshold 0.0001)\n\
+(define total-cost 0)\n\
+(define max-cost 150)\n\
 \n\
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;\n\
 \n\
@@ -171,24 +173,38 @@ ret\n\
   (make-slider 50 550 300 (- 300 90)\n\
 	       (lambda (v)\n\
 		 (set! vaccination (/ v 300))\n\
-		 (clamp-sliders!)\n\
+		 (update-people!)\n\
 		 )))\n\
 \n\
 (define drugs-slider \n\
   (make-slider 50 600 300 (- 300 90)\n\
 	       (lambda (v)\n\
 		 (set! drugs (/ v 300))\n\
-		 (clamp-sliders!)\n\
+		 (update-people!)\n\
 		 )))\n\
 \n\
 (define bednets-slider \n\
   (make-slider 50 650 300 (- 300 90)\n\
 	       (lambda (v)\n\
 		 (set! bednets (/ v 300))\n\
-		 (clamp-sliders!)\n\
+		 (update-people!)\n\
 		 )))\n\
 \n\
-(define (clamp-sliders!)\n\
+(define (update-people!)\n\
+  (let ((vs (/ (slider-p vaccination-slider) 300))\n\
+	(ds (/ (slider-p drugs-slider) 300))\n\
+	(bs (/ (slider-p bednets-slider) 300)))\n\
+    (let ((mag (sqrt (+ (square vs) (square ds) (square bs)))))\n\
+      (when (> mag 1)\n\
+	    (set! vaccination-slider (slider-update-p vaccination-slider (* (/ vs mag) 300)))\n\
+	    (set! vaccination (/ vaccination mag))\n\
+	    (set! drugs-slider (slider-update-p drugs-slider (* (/ ds mag) 300)))\n\
+	    (set! drugs (/ drugs mag))\n\
+	    (set! bednets-slider (slider-update-p bednets-slider (* (/ bs mag) 300)))\n\
+	    (set! bednets (/ bednets mag)))))\n\
+\n\
+  (msg (list vaccination drugs bednets))\n\
+  \n\
   (set! people\n\
   	(map\n\
   	 (lambda (p)\n\
@@ -197,14 +213,6 @@ ret\n\
   	    (predY vaccination drugs bednets (person-density p))))\n\
   	 people))\n\
 \n\
-  (let ((vs (/ (slider-p vaccination-slider) 300))\n\
-	(ds (/ (slider-p drugs-slider) 300))\n\
-	(bs (/ (slider-p bednets-slider) 300)))\n\
-    (let ((mag (sqrt (+ (square vs) (square ds) (square bs)))))\n\
-      (when (> mag 1)\n\
-	    (set! vaccination-slider (slider-update-p vaccination-slider (* (/ vs mag) 300)))\n\
-	    (set! drugs-slider (slider-update-p drugs-slider (* (/ ds mag) 300)))\n\
-	    (set! bednets-slider (slider-update-p bednets-slider (* (/ bs mag) 300))))))\n\
   )\n\
 \n\
 (define (render-canvas)\n\
@@ -273,8 +281,6 @@ ret\n\
      (set! map-canvas (document.createElement "canvas"))\n\
      (set! map-canvas.width img.width)\n\
      (set! map-canvas.height img.height)\n\
-     (msg img.width)\n\
-     (msg img.height)\n\
      (set! map-ctx (map-canvas.getContext "2d")) \n\
      (map-ctx.drawImage img 0 0)\n\
      (set! people \n\
@@ -282,8 +288,6 @@ ret\n\
 	    num-people\n\
 	    (lambda (i) \n\
 	      (let ((t (generate-map-pos)))\n\
-		(msg \n\
-		 (predY vaccination drugs bednets (car t)))\n\
 		(build-person (car t) (cadr t))))))))\n\
   \n\
 ;;  (set-camera-transform (mtranslate (camera-transform) (vector 0 5 0)))\n\

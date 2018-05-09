@@ -32,6 +32,8 @@
 
 (define num-people 1000)
 (define infected-threshold 0.0001)
+(define total-cost 0)
+(define max-cost 150)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -78,24 +80,38 @@
   (make-slider 50 550 300 (- 300 90)
 	       (lambda (v)
 		 (set! vaccination (/ v 300))
-		 (clamp-sliders!)
+		 (update-people!)
 		 )))
 
 (define drugs-slider 
   (make-slider 50 600 300 (- 300 90)
 	       (lambda (v)
 		 (set! drugs (/ v 300))
-		 (clamp-sliders!)
+		 (update-people!)
 		 )))
 
 (define bednets-slider 
   (make-slider 50 650 300 (- 300 90)
 	       (lambda (v)
 		 (set! bednets (/ v 300))
-		 (clamp-sliders!)
+		 (update-people!)
 		 )))
 
-(define (clamp-sliders!)
+(define (update-people!)
+  (let ((vs (/ (slider-p vaccination-slider) 300))
+	(ds (/ (slider-p drugs-slider) 300))
+	(bs (/ (slider-p bednets-slider) 300)))
+    (let ((mag (sqrt (+ (square vs) (square ds) (square bs)))))
+      (when (> mag 1)
+	    (set! vaccination-slider (slider-update-p vaccination-slider (* (/ vs mag) 300)))
+	    (set! vaccination (/ vaccination mag))
+	    (set! drugs-slider (slider-update-p drugs-slider (* (/ ds mag) 300)))
+	    (set! drugs (/ drugs mag))
+	    (set! bednets-slider (slider-update-p bednets-slider (* (/ bs mag) 300)))
+	    (set! bednets (/ bednets mag)))))
+
+  (msg (list vaccination drugs bednets))
+  
   (set! people
   	(map
   	 (lambda (p)
@@ -104,14 +120,6 @@
   	    (predY vaccination drugs bednets (person-density p))))
   	 people))
 
-  (let ((vs (/ (slider-p vaccination-slider) 300))
-	(ds (/ (slider-p drugs-slider) 300))
-	(bs (/ (slider-p bednets-slider) 300)))
-    (let ((mag (sqrt (+ (square vs) (square ds) (square bs)))))
-      (when (> mag 1)
-	    (set! vaccination-slider (slider-update-p vaccination-slider (* (/ vs mag) 300)))
-	    (set! drugs-slider (slider-update-p drugs-slider (* (/ ds mag) 300)))
-	    (set! bednets-slider (slider-update-p bednets-slider (* (/ bs mag) 300))))))
   )
 
 (define (render-canvas)
@@ -180,8 +188,6 @@
      (set! map-canvas (document.createElement "canvas"))
      (set! map-canvas.width img.width)
      (set! map-canvas.height img.height)
-     (msg img.width)
-     (msg img.height)
      (set! map-ctx (map-canvas.getContext "2d")) 
      (map-ctx.drawImage img 0 0)
      (set! people 
@@ -189,8 +195,6 @@
 	    num-people
 	    (lambda (i) 
 	      (let ((t (generate-map-pos)))
-		(msg 
-		 (predY vaccination drugs bednets (car t)))
 		(build-person (car t) (cadr t))))))))
   
 ;;  (set-camera-transform (mtranslate (camera-transform) (vector 0 5 0)))
