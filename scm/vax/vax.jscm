@@ -59,7 +59,7 @@
 (define parasite-inertia 0.90)
 (define parasite-max-age 100)
 (define parasite-growth-speed 0.3)
-(define parasite-death-speed 3)
+(define parasite-death-speed 2)
 (define parasite-max-pop 60)
 (define parasite-spawn-distance 1)
 
@@ -227,10 +227,13 @@
 		  (parasite-closest p parasites))))
     (with-primitive
      (parasite-root p)
-     (identity)
-     (translate (parasite-pos p))
-     (let ((sc (+ 2 (* (/ (parasite-age p) parasite-max-age) 4))))
-       (scale (vector sc sc 0.01))))
+     (cond 
+      ((eq? (parasite-state p) "alive")
+       (identity)
+       (translate (parasite-pos p))
+       (let ((sc (+ 2 (* (/ (parasite-age p) parasite-max-age) 4))))
+	 (scale (vector sc sc 0.01))))
+      (else (scale (vector 0.9 0.9 0.9)))))
     (make-parasite
      (parasite-id p)
      (vadd (parasite-pos p) new-vel)
@@ -556,6 +559,7 @@
   (make-explosion pos type 0
 		  (with-state
 		   (hint-nozwrite)
+		   (texture (load-texture "explosion.png"))
 		   (shader-assign-compiled "explosion")   
 		   (colour (type->col type))
 		   (load-primitive "models/circlefan.obj"))))
@@ -645,6 +649,7 @@
 (load-texture "noise.png")
 (load-texture "recep-circle.png")
 (load-texture "vax.png")
+(load-texture "explosion.png")
 
 (load-mesh-cache "models/plane.obj")
 (load-mesh-cache "models/planesmall.obj")

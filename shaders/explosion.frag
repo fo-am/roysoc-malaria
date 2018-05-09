@@ -8,5 +8,6 @@ varying vec3 N;
 varying vec3 L;
 
 void main() {
-  gl_FragColor = vec4(DiffuseColour,0.95);
+  gl_FragColor = vec4(DiffuseColour*texture2D(texture, vec2(T.s, T.t)).a,
+		      texture2D(texture, vec2(T.s, T.t)).a);
 }

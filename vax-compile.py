@@ -49,6 +49,7 @@ resources = [
     "textures/noise.png",
     "textures/recep-circle.png",
     "textures/vax.png",
+    "textures/explosion.png",
 
     "models/plane.obj",
     "models/planesmall.obj",
