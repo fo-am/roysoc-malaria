@@ -116,15 +116,9 @@
    (colour (type->col type))
    (parent pid)
    (translate pos)
-   (hint-nozwrite)
-   (texture (load-texture "recep-circle.png"))
-   ;; (cond 
-   ;;  ((eq? type "A") (texture (load-texture "recep-circle.png")))
-   ;;  ((eq? type "B") (texture (load-texture "recep-circle.png")))
-   ;;  ((eq? type "C") (texture (load-texture "recep-circle.png")))
-   ;;  (else (texture (load-texture "recep-circle.png"))))
+   (texture (load-texture "recep-square.png"))
    (shader-assign-compiled "receptor")   
-   (load-primitive "models/planesmall.obj"))
+   (load-primitive "models/circletiny.obj"))
   (make-receptor type pos pid))
 
 (define (receptors-clone rs pid)
@@ -144,7 +138,7 @@
        (build-receptor 
 	(vmul (vector (sin (+ start (* (/ (+ i 1) n) 2 3.141))) 
 		      (* (cos (+ start (* (/ (+ i 1) n) 2 3.141))) squash)
-		      0)
+		      0.2)
 	      receptor-create-distance)
 	s pid))
      array)))
@@ -165,12 +159,11 @@
 
 (define (parasite-prim)
   (with-state
-   (hint-nozwrite)
    (shader-assign-compiled "parasite")
    (colour parasite-col)
    (texture (load-texture "noise.png"))
    (translate (vector 1000 0 0))
-   (load-primitive "models/malaria.obj")))
+   (load-primitive "models/malaria-low.obj")))
 
 ;; lazily reuse primitive ids as parasite ids
 (define (build-parasite pos magic)
@@ -647,7 +640,7 @@
 
 (load-texture "circle-trans.png")
 (load-texture "noise.png")
-(load-texture "recep-circle.png")
+(load-texture "recep-square.png")
 (load-texture "vax.png")
 (load-texture "explosion.png")
 
@@ -658,6 +651,7 @@
 (load-mesh-cache "models/circlefansmall.obj")
 (load-mesh-cache "models/malaria-low.obj")
 (load-mesh-cache "models/malaria.obj")
+(load-mesh-cache "models/circletiny.obj")
 
 (load-images!
  (list
@@ -751,12 +745,13 @@
     (else "vial-f.png"))
    "" 
    (lambda (x) 
-     (set! vax-swarm (vax-in-syringe vax-swarm type))
-     (when (> (animated-button-time syringe-button) 75)
-	   (set! syringe-button
-		 (animated-button-modify-time 
-		  (animated-button-modify-state 
-		   syringe-button "filling") 0))))))
+     (when (not reset-game)
+	   (set! vax-swarm (vax-in-syringe vax-swarm type))
+	   (when (> (animated-button-time syringe-button) 75)
+		 (set! syringe-button
+		       (animated-button-modify-time 
+			(animated-button-modify-state 
+			 syringe-button "filling") 0)))))))
 
 
 (define (run-init)
@@ -795,7 +790,8 @@
 	   (vx spos) (- (vy spos) 80) "syringe.png" 
 	   "plunger.png" 
 	   (lambda (x) 
-	     (when (and (eq? (animated-button-state syringe-button) "filling")
+	     (when (and (not reset-game) 
+			(eq? (animated-button-state syringe-button) "filling")
 			(> (animated-button-time syringe-button) 75))
 		   (set! vaccinations (+ vaccinations 1))
 		   (set! syringe-button

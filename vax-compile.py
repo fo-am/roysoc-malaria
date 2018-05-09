@@ -47,7 +47,7 @@ resources = [
     "textures/white.png",
     "textures/circle-trans.png",
     "textures/noise.png",
-    "textures/recep-circle.png",
+    "textures/recep-square.png",
     "textures/vax.png",
     "textures/explosion.png",
 
@@ -58,6 +58,7 @@ resources = [
     "models/circlefansmall.obj",
     "models/malaria-low.obj",
     "models/malaria.obj",
+    "models/circletiny.obj",
 
 ]
 
