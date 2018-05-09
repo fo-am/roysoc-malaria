@@ -40,6 +40,8 @@ resources = [
 
     "textures/white.png",
     "textures/map.png",
+    "textures/char-start.png",
+    "textures/char-red.png",
 
     "models/circlefan.obj",
     "models/plane.obj",

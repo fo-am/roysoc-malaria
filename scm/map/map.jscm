@@ -60,17 +60,20 @@
    #f
    density
    (with-state
-    (colour (vector 1 1 1))
+    (texture (load-texture "char-start.png"))
     (shader-assign-compiled "person")
-    (translate (vmul (vsub pos (vector 256 256 0)) 0.05))
-    (load-primitive "models/plane.obj"))))
+    (translate (vadd (vmul (vsub pos (vector 256 256 0)) 0.05)
+		     (vector 0 0 (* (vy pos) -0.01))))
+    (scale (vector 2 3 1))
+    (load-primitive "models/plane.obj")
+    )))
 
 (define (update-person p y)
   (with-primitive 
    (person-root p)
    (if (> y infected-threshold)
-       (colour (vector 1 0 0))
-       (colour (vector 1 1 1))))
+       (texture (load-texture "char-red.png"))
+       (texture (load-texture "char-start.png"))))
   p)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -98,20 +101,18 @@
 		 )))
 
 (define (update-people!)
-  (let ((vs (/ (slider-p vaccination-slider) 300))
-	(ds (/ (slider-p drugs-slider) 300))
-	(bs (/ (slider-p bednets-slider) 300)))
-    (let ((mag (sqrt (+ (square vs) (square ds) (square bs)))))
-      (when (> mag 1)
-	    (set! vaccination-slider (slider-update-p vaccination-slider (* (/ vs mag) 300)))
-	    (set! vaccination (/ vaccination mag))
-	    (set! drugs-slider (slider-update-p drugs-slider (* (/ ds mag) 300)))
-	    (set! drugs (/ drugs mag))
-	    (set! bednets-slider (slider-update-p bednets-slider (* (/ bs mag) 300)))
-	    (set! bednets (/ bednets mag)))))
+  ;; (let ((vs (/ (slider-p vaccination-slider) 300))
+  ;; 	(ds (/ (slider-p drugs-slider) 300))
+  ;; 	(bs (/ (slider-p bednets-slider) 300)))
+  ;;   (let ((mag (sqrt (+ (square vs) (square ds) (square bs)))))
+  ;;     (when (> mag 1)
+  ;; 	    (set! vaccination-slider (slider-update-p vaccination-slider (* (/ vs mag) 300)))
+  ;; 	    (set! vaccination (/ vaccination mag))
+  ;; 	    (set! drugs-slider (slider-update-p drugs-slider (* (/ ds mag) 300)))
+  ;; 	    (set! drugs (/ drugs mag))
+  ;; 	    (set! bednets-slider (slider-update-p bednets-slider (* (/ bs mag) 300)))
+  ;; 	    (set! bednets (/ bednets mag)))))
 
-  (msg (list vaccination drugs bednets))
-  
   (set! people
   	(map
   	 (lambda (p)
@@ -141,6 +142,8 @@
 		"shaders/person.frag")
 
 (load-texture "map.png")
+(load-texture "char-start.png")
+(load-texture "char-red.png")
 (load-mesh-cache "models/circlefan.obj")
 (load-mesh-cache "models/plane.obj")
 
