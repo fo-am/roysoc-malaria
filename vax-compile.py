@@ -4,9 +4,9 @@ import base64
 # stuff all the scheme code into the ditto js file
 # so that it can be loaded locally
 
-pre = "vax.html"
-target = "vax-compiled.html"
-
+pre = "vax-pre.html"
+target = "vax.html"
+ 
 # more time and I would go through searching for loads to
 # do this automatically - todo
 code = ["scm/vax/vax.jscm"]

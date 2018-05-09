@@ -4,8 +4,8 @@ import base64
 # stuff all the scheme code into the ditto js file
 # so that it can be loaded locally
 
-pre = "map.html"
-target = "map-compiled.html"
+pre = "map-pre.html"
+target = "map.html"
 
 # more time and I would go through searching for loads to
 # do this automatically - todo
