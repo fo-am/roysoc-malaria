@@ -43,6 +43,8 @@ resources = [
     "shaders/receptor.frag",
     "shaders/explosion.vert",
     "shaders/explosion.frag",
+    "shaders/title.vert",
+    "shaders/title.frag",
 
     "textures/white.png",
     "textures/circle-trans.png",
@@ -50,6 +52,9 @@ resources = [
     "textures/recep-square.png",
     "textures/vax.png",
     "textures/explosion.png",
+    "textures/syringe.png",
+    "textures/plunger.png",
+    "textures/title.png",
 
     "models/plane.obj",
     "models/planesmall.obj",
@@ -59,6 +64,7 @@ resources = [
     "models/malaria-low.obj",
     "models/malaria.obj",
     "models/circletiny.obj",
+    "models/title.obj",
 
 ]
 

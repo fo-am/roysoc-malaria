@@ -89,14 +89,14 @@
 
 (define (receptor-array magic size)
   (let ((primary (choose receptor-types)))
-    (shuffle
-     (append
-      (list magic)
-      (build-list 3 (lambda (_)
-                      (choose-not receptor-types (list magic primary))))
-      (build-list (- size 4)
-                  (lambda (_)
-		    primary))))))
+    (let ((secondary (choose-not receptor-types (list magic primary))))
+      (shuffle
+       (append
+	(list magic)
+	(list secondary secondary)
+	(build-list (- size 3)
+		    (lambda (_)
+		      primary)))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -636,6 +636,9 @@
 (shader-compile "explosion" (list "p" "n" "t" "c")
 		"shaders/explosion.vert"
 		"shaders/explosion.frag")
+(shader-compile "title" (list "p" "n" "t" "c")
+		"shaders/title.vert"
+		"shaders/title.frag")
 
 
 (load-texture "circle-trans.png")
@@ -643,6 +646,7 @@
 (load-texture "recep-square.png")
 (load-texture "vax.png")
 (load-texture "explosion.png")
+(load-texture "title.png")
 
 (load-mesh-cache "models/plane.obj")
 (load-mesh-cache "models/planesmall.obj")
@@ -652,6 +656,7 @@
 (load-mesh-cache "models/malaria-low.obj")
 (load-mesh-cache "models/malaria.obj")
 (load-mesh-cache "models/circletiny.obj")
+(load-mesh-cache "models/title.obj")
 
 (load-images!
  (list
@@ -673,6 +678,7 @@
 (define parasites '())
 (define vax-swarm '())
 (define explosions '())
+(define title 0)
 
 (define recep-dummy '())
 (define vax-dummy '())
@@ -732,7 +738,9 @@
   (let ((t (* (time) 1)))
     (with-primitive parasite-dummy (shader-shared-uniform! "time" "f" t))
     (with-primitive recep-dummy (shader-shared-uniform! "time" "f" t))
-    (with-primitive vax-dummy (shader-shared-uniform! "time" "f" t)))
+    (with-primitive vax-dummy (shader-shared-uniform! "time" "f" t))
+    ;;(with-primitive title (shader-shared-uniform! "time" "f" t))
+    )
   
   )
 
@@ -767,6 +775,14 @@
   (set! vax-swarm (vax-inject (build-vax-swarm vax-swarm-size)))
   (set! parasites (build-parasites parasites-start-num current-magic))
 
+  ;; (set! title (with-state
+  ;; 	       (scale (vector 7 7 7))
+  ;; 	       (colour (vector 0 0 0))
+  ;; 	       (translate (vector 0 0 1))
+  ;; 	       (texture (load-texture "title.png"))
+  ;; 	       (shader-assign-compiled "title")   
+  ;; 	       (load-primitive "models/title.obj")))
+  
   (set! recep-dummy (with-state
 		     (translate (vector -1000 0 0))
 		     (shader-assign-compiled "receptor")   
@@ -789,10 +805,12 @@
     (set! vial5-button (build-vial (+ (/ screen-width 2) 300) ypos "E"))
     (set! vial6-button (build-vial (- (/ screen-width 2) 300) ypos "F"))
     (set! infect-bar (make-progress-bar 30 10 (- screen-width 60) 30 "HEALTH:" "20pt Dosis" 50))
-    
+     
     (set! syringe-button 
 	  (make-animated-button 
-	   (vx spos) (- (vy spos) 80) "syringe.png" 
+;;	   0 -14 
+	   (vx spos) (- (vy spos) 80) 
+	   "syringe.png" 
 	   "plunger.png" 
 	   (lambda (x) 
 	     (when (and (not reset-game) 
@@ -804,7 +822,7 @@
 			  (animated-button-modify-state 
 			   syringe-button "emptying") 0))				 
 		   (set! vax-swarm (vax-inject vax-swarm)))))))
-
+  
   (set-camera-transform (mtranslate (camera-transform) (vector 0 5 0)))
   (clear-colour (list 0.0 0.0 0.0 0.0)))
 
