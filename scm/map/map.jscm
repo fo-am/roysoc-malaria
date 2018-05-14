@@ -20,20 +20,47 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define lifespan (* 70 365))
-(define D 30)
-(define beta 1)
-(define R0 (/ beta (+ (/ 1 lifespan) (/ 1 D))))
+(define malaria-multiplier 5) ;; increases general risk 
 
-(define (predY P phiD phiB beta)
-  (let ((mu (/ 1 lifespan)))
-    (max 0 (* mu (- (* (- 1 P) (- 1 phiD) D)
-                    (/ 1 (* (- 1.000001 phiB) beta)))))))
+(define D 0.5) ;; duration
+
+(define (model-risk vaccine drugs bednets transmission)
+  (let ((mu 0.5)) ;; 1/lifespan
+    (max 0 (* mu (- (* (- 1 vaccine) (- 1 drugs) D)
+                    (/ 1 (* (- 1.000001 bednets) transmission)))))))
 
 (define num-people 1000)
-(define infected-threshold 0.0001)
-(define total-cost 0)
-(define max-cost 150)
+(define max-budget 30)
+
+(define start-amount 0)
+(define start-budget (- max-budget start-amount))
+(define total-budget start-budget)
+
+(define bednet-cost 0.2)
+(define drug-cost 50)
+(define badvax-cost 80)
+(define goodvax-cost 1)
+
+;; budget in chunks of value = coins
+(define (make-budget vax drugs bednets)
+  (list vax drugs bednets))
+(define (budget-vax b) (list-ref b 0))
+(define (budget-drugs b) (list-ref b 1))
+(define (budget-bednets b) (list-ref b 2))
+
+(define (budget-add b id v)
+  (list-replace b id (+ (list-ref b id) v)))
+
+(define (budget-amount b id)
+  (list-ref b id))
+
+(define (budget->params b population good-vax)
+  (list
+   (if good-vax
+       (/ (/ (budget-vax b) goodvax-cost) population)
+       (* (/ (/ (budget-vax b) badvax-cost) population) 0.3))
+   (/ (/ (budget-drugs b) drug-cost) population)
+   (min 1 (/ (/ (budget-bednets b) bednet-cost) population))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -45,20 +72,25 @@
   (let ((p (vmul (vector (rndf) (rndf) 0) 512)))
     (let ((d (read-map (vx p) (vy p))))
       (if (< (* (rndf) 255) (* (square (/ d 255)) 255))
-	  ;; return density squashed to 0-50
-	  (list (* d (/ 50 255)) p) (generate-map-pos)))))
+	  ;; return env-transmisson squashed between 4-8
+	  ;;(list (+ 4 (* d (/ 4 255))) p) 
+	  (list 8 p)
+	  (generate-map-pos)))))
 
-(define (make-person pos infected density root) (list pos infected density root))
+(define (make-person pos infected env-transmisson suscep root) 
+  (list pos infected env-transmisson suscep root))
 (define (person-pos p) (list-ref p 0))
 (define (person-infected p) (list-ref p 1))
-(define (person-density p) (list-ref p 2))
-(define (person-root p) (list-ref p 3))
+(define (person-env-transmisson p) (list-ref p 2))
+(define (person-suscep p) (list-ref p 3))
+(define (person-root p) (list-ref p 4))
 
-(define (build-person density pos)
+(define (build-person env-transmisson pos)
   (make-person
    pos
    #f
-   density
+   env-transmisson
+   (rndf)
    (with-state
     (texture (load-texture "char-start.png"))
     (shader-assign-compiled "person")
@@ -71,65 +103,67 @@
 (define (update-person p y)
   (with-primitive 
    (person-root p)
-   (if (> y infected-threshold)
+   (if (> y (person-suscep p))
        (texture (load-texture "char-red.png"))
        (texture (load-texture "char-start.png"))))
   p)
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; 2D schenanigans
-
-(define vaccination-slider 
-  (make-slider 50 550 300 (- 300 90)
-	       (lambda (v)
-		 (set! vaccination (/ v 300))
-		 (update-people!)
-		 )))
-
-(define drugs-slider 
-  (make-slider 50 600 300 (- 300 90)
-	       (lambda (v)
-		 (set! drugs (/ v 300))
-		 (update-people!)
-		 )))
-
-(define bednets-slider 
-  (make-slider 50 650 300 (- 300 90)
-	       (lambda (v)
-		 (set! bednets (/ v 300))
-		 (update-people!)
-		 )))
-
 (define (update-people!)
-  ;; (let ((vs (/ (slider-p vaccination-slider) 300))
-  ;; 	(ds (/ (slider-p drugs-slider) 300))
-  ;; 	(bs (/ (slider-p bednets-slider) 300)))
-  ;;   (let ((mag (sqrt (+ (square vs) (square ds) (square bs)))))
-  ;;     (when (> mag 1)
-  ;; 	    (set! vaccination-slider (slider-update-p vaccination-slider (* (/ vs mag) 300)))
-  ;; 	    (set! vaccination (/ vaccination mag))
-  ;; 	    (set! drugs-slider (slider-update-p drugs-slider (* (/ ds mag) 300)))
-  ;; 	    (set! drugs (/ drugs mag))
-  ;; 	    (set! bednets-slider (slider-update-p bednets-slider (* (/ bs mag) 300)))
-  ;; 	    (set! bednets (/ bednets mag)))))
+  (let ((params (budget->params budget 100 #t)))
+    (msg params)
+    (msg (model-risk (list-ref params 0) 
+		     (list-ref params 1)
+		     (list-ref params 2)
+		     8))
+    
+    (set! people
+	  (map
+	   (lambda (p)
+	     (update-person 
+	      p 
+	      (* malaria-multiplier (model-risk (list-ref params 0)
+						(list-ref params 1)
+						(list-ref params 2)
+						(person-env-transmisson p)))))
+	   people))))
 
-  (set! people
-  	(map
-  	 (lambda (p)
-  	   (update-person 
-  	    p 
-  	    (predY vaccination drugs bednets (person-density p))))
-  	 people))
+(define (build-stack id x y name)
+  (let ((stack (make-coin-stack (- x 25) y "coin.png" name start-amount)))
+    (list 
+     stack
+     (make-image-button
+      (+ x 30) (+ y 80) 
+      "plus.png" ""
+      (lambda (x)
+	(when (> total-budget 0)
+	      (set! total-budget (- total-budget 1))
+	      (set! budget (budget-add budget id 1)) 
+	      (set! total-stack 
+		    (coin-stack-modify-count 
+		     total-stack
+		     (- (coin-stack-count total-stack) 1)))
+	      (set! stack 
+		    (coin-stack-modify-count 
+		     stack 
+		     (+ (coin-stack-count stack) 1)))
+	      (update-people!))))
+     (make-image-button
+      (- x 30) (+ y 80)
+      "minus.png" ""
+      (lambda (x)
+	(when (> (budget-amount budget id) 0)
+	      (set! total-budget (+ total-budget 1))
+	      (set! budget (budget-add budget id -1)) 
+	      (set! total-stack 
+		    (coin-stack-modify-count 
+		     total-stack
+		     (+ (coin-stack-count total-stack) 1)))
+	      (set! stack 
+		    (coin-stack-modify-count 
+		     stack 
+		     (- (coin-stack-count stack) 1))))
+	(update-people!))))))
 
-  )
-
-(define (render-canvas)
-  (set! vaccination-slider (slider-update vaccination-slider))
-  (slider-render! vaccination-slider)
-  (set! drugs-slider (slider-update drugs-slider))
-  (slider-render! drugs-slider)
-  (set! bednets-slider (slider-update bednets-slider))
-  (slider-render! bednets-slider))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; preload things
@@ -149,7 +183,9 @@
 
 (load-images!
  (list
-  "vial-a.png"
+  "coin.png"
+  "plus.png"
+  "minus.png"
   )
  (lambda ()
    0))
@@ -157,6 +193,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define people '())
+(define budget (make-budget start-amount start-amount start-amount))
 
 (define (reset-game!)
   0)
@@ -164,6 +201,19 @@
 (define vaccination 0.6)
 (define drugs 0)
 (define bednets 0)
+
+(define (render-stack! s)
+  (image-button-update (list-ref s 1) 0)
+  (image-button-update (list-ref s 2) 0)  
+  (coin-stack-render! (list-ref s 0))
+  (image-button-render! (list-ref s 1))
+  (image-button-render! (list-ref s 2)))
+
+(define (render-canvas)
+  (render-stack! vax-stack)
+  (render-stack! drugs-stack)
+  (render-stack! bednets-stack)
+  (coin-stack-render! total-stack))
 
 (define (render-game)
   (resize-glcanvas webgl-canvas)
@@ -181,7 +231,12 @@
   (resize-glcanvas webgl-canvas)
   (canvas-setup)
   (resize-canvas canvas)
-
+  
+  (set! vax-stack (build-stack 0 300 (- screen-height 120) "Good Vaccination"))
+  (set! drugs-stack (build-stack 1 450 (- screen-height 120) "Drugs"))
+  (set! bednets-stack (build-stack 2 600 (- screen-height 120) "Bednets"))
+  (set! total-stack (make-coin-stack 700 (- screen-height 120) "coin.png" "Budget" start-budget))
+	
   ;; draw the map into a context so we can read pixels
   ;; out of it...
   ;; need to load it from static data due to cross origin rules
@@ -198,7 +253,8 @@
 	    num-people
 	    (lambda (i) 
 	      (let ((t (generate-map-pos)))
-		(build-person (car t) (cadr t))))))))
+		(build-person (car t) (cadr t))))))
+     (update-people!))) 
   
 ;;  (set-camera-transform (mtranslate (camera-transform) (vector 0 5 0)))
   (clear-colour (list 0.0 0.0 0.0 0.0)))
@@ -216,6 +272,7 @@
 	 (every-frame render-game)))
 
 (resize-canvas canvas)
+(set! ctx.font "20pt Dosis")
 (ctx.fillText "Loading..." 100 100)
 
 (every-frame (flot))
