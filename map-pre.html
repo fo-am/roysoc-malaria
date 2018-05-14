@@ -13,7 +13,10 @@
         <canvas class="canvas" id="webgl-canvas" 
 		style="background: grey; position: absolute; left: 0px; top: 0px; width: 100vw; height: 100vh;"></canvas>
         <canvas class="canvas" id="canvas"></canvas>
-	<div class="code-container" style="display: none;">
+	<div class="code-button-container">
+	  <button id="show-code-button" onclick="show_code();">Show code</button>
+	</div>
+	<div class="code-container">
 	  <button onclick="hide_code();">Hide code</button>
 	  <button onclick="run_code();">Run me</button>
 	  <textarea id="code"></textarea>
@@ -29,7 +32,33 @@
     <script src="flx/js/ditto.js"></script>
 
     <script>
+      function show_code() {
+          $('.code-container').show(); 
+          $('#show-code-button').hide(); 
+          // Refresh CodeMirror
+          $('.CodeMirror').each(function(i, el){ 
+              el.CodeMirror.refresh(); 
+          });      
+      }
+
+      function hide_code() {
+          $('.code-container').hide(); 
+          $('#show-code-button').show();
+      }
+
+      var editor=0;
+
+      function run_code() {
+          simple_eval(editor.getValue());
+      }
+
       $( document ).ready(function() {
+          $('#code').html('{{CODE}}');
+          editor = CodeMirror.fromTextArea($("#code")[0], {
+             mode: "scheme"
+          });
+
+          hide_code();
       //init(["scm/vax/vax.jscm"]);
           init_resources({{RESOURCES}});
           init_static('{{SYNTAX}}','{{CODE}}');    

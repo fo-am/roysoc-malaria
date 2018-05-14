@@ -11,6 +11,69 @@ target = "map.html"
 # do this automatically - todo
 code = ["scm/map/map.jscm"]
 
+frames = [
+"bend 1 red.png",
+"bend 2 red.png",
+"bend 3 red.png",
+"bend 4 red.png",
+"bend 5 red.png",
+"bend 6 red.png",
+"bend knees black.png",
+"bend knees red.png",
+"jump 1 black.png",
+"jump 2 black.png",
+"jump 3 black.png",
+"jump 4 black.png",
+"jump 5 black.png",
+"jump 6 black.png",
+"pat head 1 red.png",
+"pat head 2 red.png",
+"pat head 3 red.png",
+"pat head 4 red.png",
+"pat head 5 red.png",
+"pat head bend knees black.png",
+"scratch head 1 black.png",
+"scratch head 2 black.png",
+"scratch head 3 black.png",
+"start black.png",
+"start red.png",
+"tap foot black.png",
+"walk 10 black.png",
+"walk 11 black.png",
+"walk 12 black.png",
+"walk 13 black.png",
+"walk 14 black.png",
+"walk 15 black.png",
+"walk 16 black.png",
+"walk 17 black.png",
+"walk 18 black.png",
+"walk 19 black.png",
+"walk 1 black.png",
+"walk 20 black.png",
+"walk 21 black.png",
+"walk 22 black.png",
+"walk 23 black.png",
+"walk 24 black.png",
+"walk 25 black.png",
+"walk 26 black.png",
+"walk 27 black.png",
+"walk 2 black.png",
+"walk 3 black.png",
+"walk 4 black.png",
+"walk 5 black.png",
+"walk 6 black.png",
+"walk 7 black.png",
+"walk 8 black.png",
+"walk 9 black.png",
+"yogi 1 black.png",
+"yogi 1 red.png",
+"yogi 2 black.png",
+"yogi 2 red.png",
+]
+
+def prep_frame(f):
+    return "textures/frames/"+f
+
 resources = [ 
     "flx/scm/base.jscm",
     "flx/scm/maths.jscm",
@@ -32,6 +95,8 @@ resources = [
     
     "flx/scm/canvas.jscm",
     "flx/scm/canvas-widgets.jscm",
+
+    "scm/map/anim.jscm",
     
     "shaders/default.vert",
     "shaders/default.frag",
@@ -45,8 +110,7 @@ resources = [
 
     "models/circlefan.obj",
     "models/plane.obj",
-
-]
+]+map(prep_frame,frames)
 
 ################################################
 

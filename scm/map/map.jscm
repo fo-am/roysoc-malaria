@@ -17,10 +17,9 @@
 (load "flx/scm/fluxus.jscm")
 (load "flx/scm/canvas.jscm")
 (load "flx/scm/canvas-widgets.jscm")
+(load "scm/map/anim.jscm")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(define malaria-multiplier 5) ;; increases general risk 
 
 (define D 0.5) ;; duration
 
@@ -29,8 +28,8 @@
     (max 0 (* mu (- (* (- 1 vaccine) (- 1 drugs) D)
                     (/ 1 (* (- 1.000001 bednets) transmission)))))))
 
-(define num-people 1000)
-(define max-budget 30)
+(define num-people 50)
+(define max-budget 30) ;; in dollars
 
 (define start-amount 0)
 (define start-budget (- max-budget start-amount))
@@ -54,12 +53,16 @@
 (define (budget-amount b id)
   (list-ref b id))
 
+;; parameters go from 0-1
+;; budget in dollars
+;; higher cost, less you get
+;; higher population, less effective
 (define (budget->params b population good-vax)
   (list
-   (if good-vax
-       (/ (/ (budget-vax b) goodvax-cost) population)
-       (* (/ (/ (budget-vax b) badvax-cost) population) 0.3))
-   (/ (/ (budget-drugs b) drug-cost) population)
+   (min 1 (if good-vax
+	      (/ (/ (budget-vax b) goodvax-cost) population)
+	      (* (/ (/ (budget-vax b) badvax-cost) population) 0.3)))
+   (min 1 (/ (/ (budget-drugs b) drug-cost) population))
    (min 1 (/ (/ (budget-bednets b) bednet-cost) population))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -77,18 +80,21 @@
 	  (list 8 p)
 	  (generate-map-pos)))))
 
-(define (make-person pos infected env-transmisson suscep root) 
-  (list pos infected env-transmisson suscep root))
+(define (make-person pos infected anim-state env-transmisson suscep root) 
+  (list pos infected anim-state env-transmisson suscep root))
 (define (person-pos p) (list-ref p 0))
 (define (person-infected p) (list-ref p 1))
-(define (person-env-transmisson p) (list-ref p 2))
-(define (person-suscep p) (list-ref p 3))
-(define (person-root p) (list-ref p 4))
+(define (person-anim-state p) (list-ref p 2))
+(define (person-update-anim-state p v) (list-replace p 2 v))
+(define (person-env-transmisson p) (list-ref p 3))
+(define (person-suscep p) (list-ref p 4))
+(define (person-root p) (list-ref p 5))
 
 (define (build-person env-transmisson pos)
   (make-person
    pos
    #f
+   (anim-state-init)
    env-transmisson
    (rndf)
    (with-state
@@ -96,35 +102,40 @@
     (shader-assign-compiled "person")
     (translate (vadd (vmul (vsub pos (vector 256 256 0)) 0.05)
 		     (vector 0 0 (* (vy pos) -0.01))))
-    (scale (vector 2 3 1))
+    (scale (vector 12 12 1))
     (load-primitive "models/plane.obj")
     )))
 
 (define (update-person p y)
-  (with-primitive 
-   (person-root p)
-   (if (> y (person-suscep p))
-       (texture (load-texture "char-red.png"))
-       (texture (load-texture "char-start.png"))))
-  p)
-
+  (let ((infected (> y (person-suscep p))))
+    (let ((anim-state 
+	   (anim-state-advance
+	    (person-anim-state p)
+	    (if infected loops-infected loops-uninfected))))
+      (with-primitive 
+       (person-root p)
+       (texture (load-texture 
+		 (anim-state-get-frame 
+		  anim-state
+		  (if infected
+		      loops-infected loops-uninfected)))))
+      (person-update-anim-state p anim-state))))
+    
 (define (update-people!)
-  (let ((params (budget->params budget 100 #t)))
-    (msg params)
+  (let ((params (budget->params budget num-people #t)))
     (msg (model-risk (list-ref params 0) 
 		     (list-ref params 1)
 		     (list-ref params 2)
-		     8))
-    
+		     8))    
     (set! people
 	  (map
 	   (lambda (p)
 	     (update-person 
 	      p 
-	      (* malaria-multiplier (model-risk (list-ref params 0)
-						(list-ref params 1)
-						(list-ref params 2)
-						(person-env-transmisson p)))))
+	      (model-risk (list-ref params 0)
+			  (list-ref params 1)
+			  (list-ref params 2)
+			  (person-env-transmisson p))))
 	   people))))
 
 (define (build-stack id x y name)
@@ -180,6 +191,7 @@
 (load-texture "char-red.png")
 (load-mesh-cache "models/circlefan.obj")
 (load-mesh-cache "models/plane.obj")
+(anim-preload)
 
 (load-images!
  (list
@@ -215,13 +227,16 @@
   (render-stack! bednets-stack)
   (coin-stack-render! total-stack))
 
+(define people-frame-time 0)
+
 (define (render-game)
+  (canvas-update-time)
   (resize-glcanvas webgl-canvas)
   (resize-canvas canvas)
   
   (ctx.clearRect 0 0 screen-width screen-height)	  
   (render-canvas)  
-  )
+  (update-people!))
 
 (define init #f)
 (define map-canvas 0)
