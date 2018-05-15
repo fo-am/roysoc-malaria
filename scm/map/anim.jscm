@@ -112,8 +112,18 @@
 	(make-anim-state (anim-state-loop a) (+ (anim-state-frame a) 1) 0)))))
 
 (define (anim-state-get-frame a loops)
-  (string-append
-   anim-path
-   (list-ref 
-    (list-ref loops (anim-state-loop a))
-    (anim-state-frame a))))
+  (let ((loop (anim-state-loop a))
+	(frame (anim-state-frame a)))
+    (if (< loop (length loops))
+	(if (< frame (length (list-ref loops loop)))
+	    (string-append
+	     anim-path
+	     (list-ref 
+	      (list-ref loops (anim-state-loop a))
+	      (anim-state-frame a)))
+	    (string-append
+	     anim-path
+	     (car (car loops))))
+	(string-append
+	 anim-path
+	 (car (car loops))))))

@@ -7,11 +7,11 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; useful constants for tweaking
 
-(define risk-low 4)
-(define risk-high 8)
+(define transmission-low 4)
+(define transmission-high 8)
 
-(define high-pop-num 100)
-(define low-pop-num 20)
+(define high-pop-num 60)
+(define low-pop-num 10)
 
 ;; in dollars: one coin = one dollar
 (define max-budget 30) 
@@ -165,10 +165,10 @@
 	(high-pop-params (budget->params budget high-pop-num #t)))
     (let ((risk
 	   (list
-	    (model-risk high-pop-params risk-low) ;; volcanoes
-	    (model-risk low-pop-params risk-low) ;; desert
-	    (model-risk high-pop-params risk-high) ;; lakes
-	    (model-risk low-pop-params risk-high)))) ;; forest	    
+	    (model-risk high-pop-params transmission-low) ;; volcanoes
+	    (model-risk low-pop-params transmission-low) ;; desert
+	    (model-risk high-pop-params transmission-high) ;; lakes
+	    (model-risk low-pop-params transmission-high)))) ;; forest	    
       (set! people
 	    (map
 	     (lambda (p)
@@ -232,7 +232,14 @@
 (load-texture "map-exclusion.png")
 (load-texture "map-zones.png")
 (load-texture "char-start.png")
-(load-texture "char-red.png")
+(load-texture "tree-1.png")
+(load-texture "tree-2.png")
+(load-texture "tree-3.png")
+(load-texture "tree-4.png")
+(load-texture "tree-5.png")
+(load-texture "tree-6.png")
+(load-texture "tree-7.png")
+
 (load-mesh-cache "models/circlefan.obj")
 (load-mesh-cache "models/plane.obj")
 (anim-preload)
@@ -297,6 +304,28 @@
   (set! vax-stack (build-stack 0 250 (- screen-height 120) "Vaccination"))
   (set! drugs-stack (build-stack 1 400 (- screen-height 120) "Drugs"))
   (set! bednets-stack (build-stack 2 550 (- screen-height 120) "Bednets"))
+
+  (with-state
+   (translate (vector 2 0 (* 0.65 0.1))) 
+   (scale (vector -11 11 1))
+   (shader-assign-compiled "person")
+   (texture (load-texture "tree-4.png"))
+   (load-primitive "models/plane.obj"))
+
+  (with-state
+   (translate (vector -3 4 (* 0.5 0.1))) 
+   (scale (vector 13 13 1))
+   (shader-assign-compiled "person")
+   (texture (load-texture "tree-3.png"))
+   (load-primitive "models/plane.obj"))
+
+  (with-state
+   (translate (vector 1 4 (* 0.5 0.1))) 
+   (scale (vector 9 13 1))
+   (shader-assign-compiled "person")
+   (texture (load-texture "tree-5.png"))
+   (load-primitive "models/plane.obj"))
+
 	
   ;; draw the map into a context so we can read pixels
   ;; out of it...

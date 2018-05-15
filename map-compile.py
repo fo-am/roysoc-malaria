@@ -109,6 +109,14 @@ resources = [
     "textures/char-start.png",
     "textures/char-red.png",
 
+    "textures/tree-1.png",
+    "textures/tree-2.png",
+    "textures/tree-3.png",
+    "textures/tree-4.png",
+    "textures/tree-5.png",
+    "textures/tree-6.png",
+    "textures/tree-7.png",
+
     "models/circlefan.obj",
     "models/plane.obj",
 ]+map(prep_frame,frames)

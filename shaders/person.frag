@@ -11,13 +11,12 @@ void main() {
     vec3 l = normalize(L);
     vec3 n = normalize(N);
     float diffuse = dot(vec3(0,0,1),n);
+    float alpha = texture2D(texture, vec2(T.s, T.t)).a;
+    vec3 col = texture2D(texture, vec2(T.s, T.t)).xyz;
 
-    if(texture2D(texture, vec2(T.s, T.t)).a == 0.0) {
+    if(alpha < 0.4) {
         discard;
     }
-
-    gl_FragColor = vec4(texture2D(texture, vec2(T.s, T.t)).xyz *
-			texture2D(texture, vec2(T.s, T.t)).a *
-			DiffuseColour*C*diffuse, 
-                        texture2D(texture, vec2(T.s, T.t)).a);
+    col *= smoothstep(0.4, 1.0, alpha);
+    gl_FragColor = vec4(col * DiffuseColour*C*diffuse, alpha);
 }
