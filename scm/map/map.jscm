@@ -1,18 +1,4 @@
 ;; -*- mode: scheme; -*-
-;; Royal Soc Malaria Copyright (C) 2018 FoAM Kernow
-
-;; This program is free software: you can redistribute it and/or modify
-;; it under the terms of the GNU Affero General Public License as
-;; published by the Free Software Foundation, either version 3 of the
-;; License, or (at your option) any later version.
-;;
-;; This program is distributed in the hope that it will be useful,
-;; but WITHOUT ANY WARRANTY; without even the implied warranty of
-;; MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-;; GNU Affero General Public License for more details.
-;;
-;; You should have received a copy of the GNU Affero General Public License
-;; along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 (load "flx/scm/fluxus.jscm")
 (load "flx/scm/canvas.jscm")
@@ -20,31 +6,34 @@
 (load "scm/map/anim.jscm")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; useful constants for tweaking
 
-(define D 0.5) ;; duration
 (define risk-low 4)
 (define risk-high 8)
 
-(define (model-risk vaccine drugs bednets transmission)
-  (let ((mu 0.5)) ;; 1/lifespan
-    (max 0 (* mu (- (* (- 1 vaccine) (- 1 drugs) D)
-                    (/ 1 (* (- 1.000001 bednets) transmission)))))))
+(define high-pop-num 100)
+(define low-pop-num 20)
 
-(define high-pop-num 300)
-(define low-pop-num 30)
-(define num-people (+ (* high-pop-num 2) (* low-pop-num 2)))
-(define max-budget 30) ;; in dollars
-
-(define start-amount 0)
-(define start-budget (- max-budget start-amount))
-(define total-budget start-budget)
+;; in dollars: one coin = one dollar
+(define max-budget 30) 
 
 (define bednet-cost 0.2)
 (define drug-cost 50)
 (define badvax-cost 80)
 (define goodvax-cost 1)
 
-;; budget in chunks of value = coins
+(define badvax-p-multiplier 0.3)
+
+(define D 0.5) ;; duration of disease
+
+(define num-people (+ (* high-pop-num 2) (* low-pop-num 2)))
+
+(define start-amount 0)
+(define start-budget (- max-budget start-amount))
+(define total-budget start-budget)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 (define (make-budget vax drugs bednets)
   (list vax drugs bednets))
 (define (budget-vax b) (list-ref b 0))
@@ -57,32 +46,41 @@
 (define (budget-amount b id)
   (list-ref b id))
 
+;; the model
+(define (model-risk params transmission)
+  (let ((vaccine (list-ref params 0))
+	(drugs (list-ref params 1))
+	(bednets (list-ref params 2))
+	(mu 0.5)) ;; 1/host lifespan
+    (max 0 (* mu (- (* (- 1 vaccine) (- 1 drugs) D)
+                    (/ 1 (* (- 1.000001 bednets) transmission)))))))
+
 ;; parameters go from 0-1
 ;; budget in dollars
 ;; higher cost, less you get
 ;; higher population, less effective
 (define (budget->params b population good-vax)
   (list
+   ;; over 1 makes no sense for the model 
+   ;; (presume a person has no use for more than one bed net, vaccine etc)
    (min 1 (if good-vax
 	      (/ (/ (budget-vax b) goodvax-cost) population)
-	      (* (/ (/ (budget-vax b) badvax-cost) population) 0.3)))
+	      (* (/ (/ (budget-vax b) badvax-cost) population) badvax-p-multiplier)))
    (min 1 (/ (/ (budget-drugs b) drug-cost) population))
    (min 1 (/ (/ (budget-bednets b) bednet-cost) population))))
 
 ;; zoning
-
-(define highpop-lowrisk 0)  ;; volcanoes
-(define lowpop-lowrisk 1)   ;; desert
-(define highpop-highrisk 2) ;; lakes
-(define lowpop-highrisk 3)  ;; forests
+(define volcanoes 0) ;; high pop/low risk
+(define desert 1)    ;; low pop/low risk
+(define lakes 2)     ;; high pop/high risk
+(define forest 3)    ;; low pop/high risk
 
 (define (zone-col->id col)
-  (msg col)
   (cond
-   ((and (eq? (vx col) 255) (eq? (vy col) 0)   (eq? (vz col) 0)) 0)
-   ((and (eq? (vx col) 0)   (eq? (vy col) 255) (eq? (vz col) 0)) 1)
-   ((and (eq? (vx col) 0)   (eq? (vy col) 0)   (eq? (vz col) 255)) 2)
-   (else 3)))
+   ((and (eq? (vx col) 255) (eq? (vy col) 0)   (eq? (vz col) 0)) volcanoes)
+   ((and (eq? (vx col) 0)   (eq? (vy col) 255) (eq? (vz col) 0)) desert)
+   ((and (eq? (vx col) 0)   (eq? (vy col) 0)   (eq? (vz col) 255)) lakes)
+   (else forest)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -131,7 +129,7 @@
 			  0)
 		  (vector 0 0 (* (vy norm) -0.01)))))
     (scale (vector 6 6 1))
-    (when (< (rndf) 0.5) (scale -1 1 1))
+    (when (< (rndf) 0.5) (scale (vector -1 1 1)))
     (load-primitive "models/plane.obj")
     )))
 
@@ -155,33 +153,21 @@
 	(high-pop-params (budget->params budget high-pop-num #t)))
     (let ((risk
 	   (list
-	    ;; volcanoes: high pop, low risk
-	    (model-risk (list-ref high-pop-params 0)
-			(list-ref high-pop-params 1)
-			(list-ref high-pop-params 2)
-			risk-low)
-	    ;; desert: low pop, low risk
-	    (model-risk (list-ref low-pop-params 0)
-			(list-ref low-pop-params 1)
-			(list-ref low-pop-params 2)
-			risk-low)
-	    ;; lakes: high pop, high risk
-	    (model-risk (list-ref high-pop-params 0)
-			(list-ref high-pop-params 1)
-			(list-ref high-pop-params 2)
-			risk-high)
-	    ;; forests: low pop, high risk
-	    (model-risk (list-ref low-pop-params 0)
-			(list-ref low-pop-params 1)
-			(list-ref low-pop-params 2)
-			risk-high))))
-	    
+	    (model-risk high-pop-params risk-low) ;; volcanoes
+	    (model-risk low-pop-params risk-low) ;; desert
+	    (model-risk high-pop-params risk-high) ;; lakes
+	    (model-risk low-pop-params risk-high)))) ;; forest	    
+      (set! people
+	    (map
+	     (lambda (p)
+	       (update-person p (list-ref risk (person-zone-id p))))
+	     people)))))
 
-    (set! people
-	  (map
-	   (lambda (p)
-	     (update-person p (list-ref risk (person-zone-id p))))
-	   people)))))
+(define (build-population num zone-id exclusion-ctx zones-ctx)
+  (build-list 
+   num (lambda (i) 
+	 (build-person zone-id (generate-map-pos zone-id exclusion-ctx zones-ctx)))))
+
 
 (define (build-stack id x y name)
   (let ((stack (make-coin-stack (- x 25) y "coin.png" name start-amount)))
@@ -295,10 +281,10 @@
   (canvas-setup)
   (resize-canvas canvas)
   
-  (set! vax-stack (build-stack 0 300 (- screen-height 120) "Good Vaccination"))
-  (set! drugs-stack (build-stack 1 450 (- screen-height 120) "Drugs"))
-  (set! bednets-stack (build-stack 2 600 (- screen-height 120) "Bednets"))
-  (set! total-stack (make-coin-stack 700 (- screen-height 120) "coin.png" "Budget" start-budget))
+  (set! total-stack (make-coin-stack 100 (- screen-height 120) "coin.png" "Budget" start-budget))
+  (set! vax-stack (build-stack 0 250 (- screen-height 120) "Vaccination"))
+  (set! drugs-stack (build-stack 1 400 (- screen-height 120) "Drugs"))
+  (set! bednets-stack (build-stack 2 550 (- screen-height 120) "Bednets"))
 	
   ;; draw the map into a context so we can read pixels
   ;; out of it...
@@ -311,7 +297,6 @@
      (set! exclusion-canvas.height img.height)
      (set! exclusion-ctx (exclusion-canvas.getContext "2d")) 
      (exclusion-ctx.drawImage img 0 0)
-
      (set! ctx.globalAlpha 0.4)
      (ctx.drawImage exclusion-canvas 0 0)
      (set! ctx.globalAlpha 1)
@@ -326,29 +311,14 @@
 	(zones-ctx.drawImage img 0 0)
 	(set! people 
 	      (append
-	       (build-list 
-		high-pop-num
-		(lambda (i) 
-		  (build-person 0 (generate-map-pos 0 exclusion-ctx zones-ctx))))
-	       (build-list 
-		low-pop-num
-		(lambda (i) 
-		  (build-person 1 (generate-map-pos 1 exclusion-ctx zones-ctx))))
-	       (build-list 
-		high-pop-num
-		(lambda (i) 
-		  (build-person 2 (generate-map-pos 2 exclusion-ctx zones-ctx))))
-	       (build-list 
-		low-pop-num
-		(lambda (i) 
-		  (build-person 3 (generate-map-pos 3 exclusion-ctx zones-ctx))))))
+	       (build-population high-pop-num volcanoes exclusion-ctx zones-ctx)
+	       (build-population low-pop-num desert exclusion-ctx zones-ctx)
+	       (build-population high-pop-num lakes exclusion-ctx zones-ctx)
+	       (build-population low-pop-num forest exclusion-ctx zones-ctx)))
 	(update-people!)))))
-  
-  
-;;  (set-camera-transform (mtranslate (camera-transform) (vector 0 5 0)))
   (clear-colour (list 0.0 0.0 0.0 0.0)))
 
-(define (flot)
+(define (start)
   (when  (and
 	  (not init)
 ;;	  (meshes-loaded?)
@@ -364,5 +334,5 @@
 (set! ctx.font "20pt Amatic")
 (ctx.fillText "Loading..." 100 100)
 
-(every-frame (flot))
+(every-frame (start))
 	 
