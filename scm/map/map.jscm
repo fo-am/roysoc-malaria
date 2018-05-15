@@ -116,22 +116,35 @@
    zone-id
    (rndf)
    (with-state
-    (texture (load-texture "char-start.png"))
     (shader-assign-compiled "person")
     ;; pos is in map pixel space
-    ;; so divide to normalise
-    (let ((norm (vector (- (/ (vx pos) map-width) 0.5)
-			(- (/ (vy pos) map-height) 0.5)
+    ;; so divide to normalise (0 - 1)
+    (let ((map-aspect (/ map-width map-height))
+	  (scr-aspect (/ screen-width screen-height))
+	  (norm (vector (/ (vx pos) map-width)
+			(- 1 (/ (vy pos) map-height))
 			0)))
-      (translate (vadd
-		  (vector (* (vx norm) (/ screen-width screen-height) 30)
-			  (* (vy norm) (/ screen-width screen-height) 17) 
-			  0)
-		  (vector 0 0 (* (vy norm) -0.01)))))
-    (scale (vector 6 6 1))
-    (when (< (rndf) 0.5) (scale (vector -1 1 1)))
-    (load-primitive "models/plane.obj")
-    )))
+      ;; convert to screen space pixels (0 - screen-width/height)
+      (let ((screen (vector
+		     (* (vx norm) screen-width)
+		     ;; need to sort out y so it ends at the right 
+		     ;; place - not screen-height
+		     ;; as the aspect ratio is different
+		     (* (vy norm) (/ screen-width map-aspect))
+		     0)))
+	(let ((world (vector
+		      (- (vx screen) (/ screen-width 2))
+		      (- (/ screen-height 2) (vy screen)) 
+		      0)))
+	  
+	  (translate (vadd
+		      (vmul world 0.045) ;; special uniform scale...
+		      (vector 0 0 (* (vy norm) 0.1))))))
+      (translate (vector 0 1 0))
+      (scale (vector 6 6 1))
+      (when (< (rndf) 0.5) (scale (vector -1 1 1)))
+      (load-primitive "models/plane.obj")
+      ))))
 
 (define (update-person p y)
   (let ((infected (> y (person-suscep p))))
@@ -142,10 +155,10 @@
       (with-primitive 
        (person-root p)
        (texture (load-texture 
-		 (anim-state-get-frame 
-		  anim-state
-		  (if infected
-		      loops-infected loops-uninfected)))))
+       		 (anim-state-get-frame 
+       		  anim-state
+       		  (if infected
+       		      loops-infected loops-uninfected)))))
       (person-update-anim-state p anim-state))))
     
 (define (update-people!)

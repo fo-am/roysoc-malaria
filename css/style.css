@@ -45,7 +45,8 @@ input {
     height: 100%;
 }
 
-#webgl-canvas { }
+#webgl-canvas { 
+}
 
 #canvas {
     position: absolute;
