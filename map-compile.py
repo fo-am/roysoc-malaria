@@ -104,7 +104,8 @@ resources = [
     "shaders/person.frag",
 
     "textures/white.png",
-    "textures/map.png",
+    "textures/map-exclusion.png",
+    "textures/map-zones.png",
     "textures/char-start.png",
     "textures/char-red.png",
 

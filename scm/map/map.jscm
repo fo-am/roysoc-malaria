@@ -22,13 +22,17 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define D 0.5) ;; duration
+(define risk-low 4)
+(define risk-high 8)
 
 (define (model-risk vaccine drugs bednets transmission)
   (let ((mu 0.5)) ;; 1/lifespan
     (max 0 (* mu (- (* (- 1 vaccine) (- 1 drugs) D)
                     (/ 1 (* (- 1.000001 bednets) transmission)))))))
 
-(define num-people 50)
+(define high-pop-num 300)
+(define low-pop-num 30)
+(define num-people (+ (* high-pop-num 2) (* low-pop-num 2)))
 (define max-budget 30) ;; in dollars
 
 (define start-amount 0)
@@ -65,44 +69,69 @@
    (min 1 (/ (/ (budget-drugs b) drug-cost) population))
    (min 1 (/ (/ (budget-bednets b) bednet-cost) population))))
 
+;; zoning
+
+(define highpop-lowrisk 0)  ;; volcanoes
+(define lowpop-lowrisk 1)   ;; desert
+(define highpop-highrisk 2) ;; lakes
+(define lowpop-highrisk 3)  ;; forests
+
+(define (zone-col->id col)
+  (msg col)
+  (cond
+   ((and (eq? (vx col) 255) (eq? (vy col) 0)   (eq? (vz col) 0)) 0)
+   ((and (eq? (vx col) 0)   (eq? (vy col) 255) (eq? (vz col) 0)) 1)
+   ((and (eq? (vx col) 0)   (eq? (vy col) 0)   (eq? (vz col) 255)) 2)
+   (else 3)))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define (read-map x y) 
-  (let ((t (map-ctx.getImageData x (- 512 y) 1 1)))
-    (list-ref t.data 0)))
+(define map-width 3840)
+(define map-height 2160)
 
-(define (generate-map-pos)
-  (let ((p (vmul (vector (rndf) (rndf) 0) 512)))
-    (let ((d (read-map (vx p) (vy p))))
-      (if (< (* (rndf) 255) (* (square (/ d 255)) 255))
-	  ;; return env-transmisson squashed between 4-8
-	  ;;(list (+ 4 (* d (/ 4 255))) p) 
-	  (list 8 p)
-	  (generate-map-pos)))))
+(define (read-map ctx x y) 
+  (let ((t (ctx.getImageData x (- map-height y) 1 1)))
+    t.data))
 
-(define (make-person pos infected anim-state env-transmisson suscep root) 
-  (list pos infected anim-state env-transmisson suscep root))
+(define (generate-map-pos zone-id exclusion-ctx zones-ctx)
+  (let ((p (vector (* (rndf) map-width) (* (rndf) map-height) 0)))
+    (let ((d (read-map exclusion-ctx (vx p) (vy p)))
+	  (z (read-map zones-ctx (vx p) (vy p))))
+      (if (and (> (vx d) 127) (eq? (zone-col->id z) zone-id))
+	  p (generate-map-pos zone-id exclusion-ctx zones-ctx)))))
+
+(define (make-person pos infected anim-state zone-id suscep root) 
+  (list pos infected anim-state zone-id suscep root))
 (define (person-pos p) (list-ref p 0))
 (define (person-infected p) (list-ref p 1))
 (define (person-anim-state p) (list-ref p 2))
 (define (person-update-anim-state p v) (list-replace p 2 v))
-(define (person-env-transmisson p) (list-ref p 3))
+(define (person-zone-id p) (list-ref p 3))
 (define (person-suscep p) (list-ref p 4))
 (define (person-root p) (list-ref p 5))
 
-(define (build-person env-transmisson pos)
+(define (build-person zone-id pos)
   (make-person
    pos
    #f
    (anim-state-init)
-   env-transmisson
+   zone-id
    (rndf)
    (with-state
     (texture (load-texture "char-start.png"))
     (shader-assign-compiled "person")
-    (translate (vadd (vmul (vsub pos (vector 256 256 0)) 0.05)
-		     (vector 0 0 (* (vy pos) -0.01))))
-    (scale (vector 12 12 1))
+    ;; pos is in map pixel space
+    ;; so divide to normalise
+    (let ((norm (vector (- (/ (vx pos) map-width) 0.5)
+			(- (/ (vy pos) map-height) 0.5)
+			0)))
+      (translate (vadd
+		  (vector (* (vx norm) (/ screen-width screen-height) 30)
+			  (* (vy norm) (/ screen-width screen-height) 17) 
+			  0)
+		  (vector 0 0 (* (vy norm) -0.01)))))
+    (scale (vector 6 6 1))
+    (when (< (rndf) 0.5) (scale -1 1 1))
     (load-primitive "models/plane.obj")
     )))
 
@@ -122,21 +151,37 @@
       (person-update-anim-state p anim-state))))
     
 (define (update-people!)
-  (let ((params (budget->params budget num-people #t)))
-    (msg (model-risk (list-ref params 0) 
-		     (list-ref params 1)
-		     (list-ref params 2)
-		     8))    
+  (let ((low-pop-params (budget->params budget low-pop-num #t))
+	(high-pop-params (budget->params budget high-pop-num #t)))
+    (let ((risk
+	   (list
+	    ;; volcanoes: high pop, low risk
+	    (model-risk (list-ref high-pop-params 0)
+			(list-ref high-pop-params 1)
+			(list-ref high-pop-params 2)
+			risk-low)
+	    ;; desert: low pop, low risk
+	    (model-risk (list-ref low-pop-params 0)
+			(list-ref low-pop-params 1)
+			(list-ref low-pop-params 2)
+			risk-low)
+	    ;; lakes: high pop, high risk
+	    (model-risk (list-ref high-pop-params 0)
+			(list-ref high-pop-params 1)
+			(list-ref high-pop-params 2)
+			risk-high)
+	    ;; forests: low pop, high risk
+	    (model-risk (list-ref low-pop-params 0)
+			(list-ref low-pop-params 1)
+			(list-ref low-pop-params 2)
+			risk-high))))
+	    
+
     (set! people
 	  (map
 	   (lambda (p)
-	     (update-person 
-	      p 
-	      (model-risk (list-ref params 0)
-			  (list-ref params 1)
-			  (list-ref params 2)
-			  (person-env-transmisson p))))
-	   people))))
+	     (update-person p (list-ref risk (person-zone-id p))))
+	   people)))))
 
 (define (build-stack id x y name)
   (let ((stack (make-coin-stack (- x 25) y "coin.png" name start-amount)))
@@ -186,7 +231,8 @@
 		"shaders/person.vert"
 		"shaders/person.frag")
 
-(load-texture "map.png")
+(load-texture "map-exclusion.png")
+(load-texture "map-zones.png")
 (load-texture "char-start.png")
 (load-texture "char-red.png")
 (load-mesh-cache "models/circlefan.obj")
@@ -239,8 +285,10 @@
   (update-people!))
 
 (define init #f)
-(define map-canvas 0)
-(define map-ctx 0)
+(define exclusion-canvas 0)
+(define exclusion-ctx 0)
+(define zones-canvas 0)
+(define zones-ctx 0)
 
 (define (run-init)
   (resize-glcanvas webgl-canvas)
@@ -256,20 +304,46 @@
   ;; out of it...
   ;; need to load it from static data due to cross origin rules
   (load-resource-img 
-   "textures/map.png" 
+   "textures/map-exclusion.png" 
    (lambda (img)
-     (set! map-canvas (document.createElement "canvas"))
-     (set! map-canvas.width img.width)
-     (set! map-canvas.height img.height)
-     (set! map-ctx (map-canvas.getContext "2d")) 
-     (map-ctx.drawImage img 0 0)
-     (set! people 
-	   (build-list 
-	    num-people
-	    (lambda (i) 
-	      (let ((t (generate-map-pos)))
-		(build-person (car t) (cadr t))))))
-     (update-people!))) 
+     (set! exclusion-canvas (document.createElement "canvas"))
+     (set! exclusion-canvas.width img.width)
+     (set! exclusion-canvas.height img.height)
+     (set! exclusion-ctx (exclusion-canvas.getContext "2d")) 
+     (exclusion-ctx.drawImage img 0 0)
+
+     (set! ctx.globalAlpha 0.4)
+     (ctx.drawImage exclusion-canvas 0 0)
+     (set! ctx.globalAlpha 1)
+
+     (load-resource-img 
+      "textures/map-zones.png" 
+      (lambda (img)
+	(set! zones-canvas (document.createElement "canvas"))
+	(set! zones-canvas.width img.width)
+	(set! zones-canvas.height img.height)
+	(set! zones-ctx (zones-canvas.getContext "2d")) 
+	(zones-ctx.drawImage img 0 0)
+	(set! people 
+	      (append
+	       (build-list 
+		high-pop-num
+		(lambda (i) 
+		  (build-person 0 (generate-map-pos 0 exclusion-ctx zones-ctx))))
+	       (build-list 
+		low-pop-num
+		(lambda (i) 
+		  (build-person 1 (generate-map-pos 1 exclusion-ctx zones-ctx))))
+	       (build-list 
+		high-pop-num
+		(lambda (i) 
+		  (build-person 2 (generate-map-pos 2 exclusion-ctx zones-ctx))))
+	       (build-list 
+		low-pop-num
+		(lambda (i) 
+		  (build-person 3 (generate-map-pos 3 exclusion-ctx zones-ctx))))))
+	(update-people!)))))
+  
   
 ;;  (set-camera-transform (mtranslate (camera-transform) (vector 0 5 0)))
   (clear-colour (list 0.0 0.0 0.0 0.0)))
@@ -287,7 +361,7 @@
 	 (every-frame render-game)))
 
 (resize-canvas canvas)
-(set! ctx.font "20pt Dosis")
+(set! ctx.font "20pt Amatic")
 (ctx.fillText "Loading..." 100 100)
 
 (every-frame (flot))

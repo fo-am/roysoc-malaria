@@ -103,11 +103,11 @@
 	  (make-anim-state (random (length loops)) 0 0))
 	 (else a)))
        ;; have we run out of frames?
-       ((> (anim-state-frame a) (length (list-ref loops (anim-state-loop a))))
+       ((>= (anim-state-frame a) (- (length (list-ref loops (anim-state-loop a))) 1))
 	(cond
 	 ((< (rndf) 0.5) ;; repeat loop again
 	  (make-anim-state (anim-state-loop a) 0 0))
-	 (else (make-anim-state 0 0)))) ;; back to start pose
+	 (else (make-anim-state 0 0 0)))) ;; back to start pose
        (else
 	(make-anim-state (anim-state-loop a) (+ (anim-state-frame a) 1) 0)))))
 

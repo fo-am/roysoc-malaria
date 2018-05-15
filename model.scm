@@ -11,6 +11,8 @@
     (max 0 (* mu (- (* (- 1 P) (- 1 phiD) D)
                     (/ 1 (* (- 1.000001 phiB) beta)))))))
 
+(predY 0 0 0 4)
+
 (plot (function (lambda (x) (predY x 0 0 1)) 0 1)
       #:x-label "vaccination effort" #:y-label "predicted Y")
 (plot (function (lambda (x) (predY 0 x 0 1)) 0 1)

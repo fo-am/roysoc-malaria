@@ -17,6 +17,7 @@ void main() {
     }
 
     gl_FragColor = vec4(texture2D(texture, vec2(T.s, T.t)).xyz *
-                            DiffuseColour*C*diffuse, 
+			texture2D(texture, vec2(T.s, T.t)).a *
+			DiffuseColour*C*diffuse, 
                         texture2D(texture, vec2(T.s, T.t)).a);
 }

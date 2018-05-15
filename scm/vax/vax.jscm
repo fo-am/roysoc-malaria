@@ -804,7 +804,7 @@
     (set! vial4-button (build-vial (+ (/ screen-width 2) 200) ypos "D"))
     (set! vial5-button (build-vial (+ (/ screen-width 2) 300) ypos "E"))
     (set! vial6-button (build-vial (- (/ screen-width 2) 300) ypos "F"))
-    (set! infect-bar (make-progress-bar 30 10 (- screen-width 60) 30 "HEALTH:" "20pt Dosis" 50))
+    (set! infect-bar (make-progress-bar 30 10 (- screen-width 60) 30 "HEALTH:" "20pt Amatic" 50))
      
     (set! syringe-button 
 	  (make-animated-button 
