@@ -1,7 +1,6 @@
 ;; -*- mode: scheme; -*-
 
 (load "flx/scm/fluxus.jscm")
-(load "flx/scm/canvas.jscm")
 (load "flx/scm/canvas-widgets.jscm")
 (load "scm/map/anim.jscm")
 
@@ -310,9 +309,6 @@
      (set! exclusion-canvas.height img.height)
      (set! exclusion-ctx (exclusion-canvas.getContext "2d")) 
      (exclusion-ctx.drawImage img 0 0)
-     (set! ctx.globalAlpha 0.4)
-     (ctx.drawImage exclusion-canvas 0 0)
-     (set! ctx.globalAlpha 1)
 
      (load-resource-img 
       "textures/map-zones.png" 
@@ -339,6 +335,8 @@
 	  (shaders-loaded?)
 	  (canvas-loaded?)
 	  )
+
+	 (msg "starting up...")
 	 (set! init #t)
 	 (run-init)	 
 	 (every-frame render-game)))
