@@ -20,6 +20,7 @@
 
 (define receptor-create-distance 0.5)
 (define receptor-types (list "A" "B" "C" "D" "E" "F"))
+(define magic-fixed #t)
 
 (define (hex->col r g b) (vector (/ r 255) (/ g 255) (/ b 255)))
 
@@ -60,18 +61,20 @@
 (define parasite-max-age 100)
 (define parasite-growth-speed 0.3)
 (define parasite-death-speed 2)
-(define parasite-max-pop 100)
+(define parasite-max-pop 80)
 (define parasite-spawn-distance 1)
+(define parasite-spawn-prob 0.002)
 
 (define parasites-start-num 10)
 
 (define vax-swarm-size 200)
-(define vax-inject-amount 100)
-(define vax-inertia 0.02) ;; 0.05
+(define vax-inject-amount 1)
+(define vax-inject-fill-prob 0.75)
+(define vax-inertia 0.05) ;; 0.05
 (define vax-speed -0.5)
 (define vax-collide-distance 1)
 (define vax-rot-speed 13)
-(define vax-dissolve-prob 0.0001)
+(define vax-dissolve-prob 0.005)
 
 (define explosion-max-age 2)
 (define explosion-speed 0.05)
@@ -194,8 +197,8 @@
      (lambda (other r)
        (if (not (eq? (parasite-id other) 
 		     (parasite-id parasite)))
-	   (let ((dist (vdist (parasite-pos parasite)
-			      (parasite-pos other))))
+	   (let ((dist (vdist-squared (parasite-pos parasite)
+				      (parasite-pos other))))
 	     (if (< dist closest)
 		 (begin
 		   (set! closest dist)
@@ -246,7 +249,8 @@
   (foldl
    (lambda (p r)
      (cond 
-      ((> (parasite-age p) parasite-max-age)
+      ((or (< (rndf) parasite-spawn-prob)
+	   (> (parasite-age p) parasite-max-age))
        (destroy (parasite-root p))
        (if (< (length parasites) parasite-max-pop)
 	   (let ((new-pos (vector 1 0 0)))
@@ -255,9 +259,9 @@
 		     (vadd (parasite-pos p) 
 			   (vmul new-pos parasite-spawn-distance))
 		     (parasite-receptors p))
-		    (parasite-spawn 
-		     (parasite-pos p)    
-		     (parasite-receptors p))
+		    ;(parasite-spawn 
+		    ; (parasite-pos p)    
+		    ; (parasite-receptors p))
 		    (parasite-spawn 
 		     (vadd (parasite-pos p) 
 			   (vmul new-pos (- parasite-spawn-distance)))
@@ -431,22 +435,24 @@
 
 (define (vax-in-syringe vs type)
   (define count vax-inject-amount)
-  (map
-   (lambda (v)
-     (cond 
-      ((and (> count 0) (eq? (vax-state v) vax-state-idle))
-       (set! count (- count 1))
-       (with-primitive (vax-root v) (colour (type->col type)))
-       (make-vax
-	vax-state-syringe
-	-1
-	(vector 0 0 0)
-	(vector 0 0 0)
-	(vadd (vector (crndf) (* (crndf) 2.5) 0) inject-pos)
-	(vax-root v)
-	#f type (random 360)))
-      (else v)))
-   vs))
+  (if (< (rndf) vax-inject-fill-prob)
+      (map
+       (lambda (v)
+	 (cond 
+	  ((and (> count 0) (eq? (vax-state v) vax-state-idle))
+	   (set! count (- count 1))
+	   (with-primitive (vax-root v) (colour (type->col type)))
+	   (make-vax
+	    vax-state-syringe
+	    -1
+	    (vector 0 0 0)
+	    (vector 0 0 0)
+	    (vadd (vector (crndf) (* (crndf) 2.5) 0) inject-pos)
+	    (vax-root v)
+	    #f type (random 360)))
+	  (else v)))
+       vs)
+      vs))
 
 (define (vax-choose-receptor type receptors)
   (foldl
@@ -455,19 +461,28 @@
 	 rec r))
    #f receptors))
 
-;(define (random-fold fn init l tries)
-;  (let ((tries ()))))
+;; optimisation - might get same one more than once...
+(define (random-fold fn init l tries)
+  (cond
+   ((null? l) init)
+   (else
+    (let ((ret init))
+      (js "for (var i=0; i<tries; i++) {")
+      (set! ret (fn (choose l) ret))
+      (js "}")
+      ret))))
 
 ;; returns (pid,receptor)
 (define (vax-choose-parasite/receptor type parasites)
-  (foldl
+  (random-fold
    (lambda (p r)
      (if (and (not r) (eq? (parasite-state p) "alive"))
 	 (let ((receptor (vax-choose-receptor type (parasite-receptors p))))
 	   (if receptor (list p receptor) #f))
 	 r))
    #f
-   (shuffle parasites)))
+   parasites
+   10))
 
 (define (update-vax-swarm vs parasites)
   (map
@@ -500,7 +515,12 @@
 	       (when (< dist vax-collide-distance)	
 		     (set! explosions (explosions-add explosions (vax-dest v) (vax-type v))))
 	       (make-vax
-		(if (or (< dist vax-collide-distance) (< (rndf) vax-dissolve-prob)) vax-state-idle vax-state-chasing)
+		(if (or 
+		     (< dist vax-collide-distance) 
+		     (and 
+		      (not (eq? (vax-type v) current-magic))
+		      (< (rndf) vax-dissolve-prob)))
+		    vax-state-idle vax-state-chasing)
 		(vax-pid v)
 		(vadd (vax-dest v) (parasite-vel p)) 
 		(calc-vax-swarm (vax-pos v) (vax-vel v) (vax-dest v))
@@ -694,7 +714,7 @@
 (define vax-dummy '())
 
 (define current-vax "red")
-(define current-magic "A");;(choose receptor-types))
+(define current-magic (if magic-fixed "A" (choose receptor-types)))
 
 (define new-game-time (time))
 (define vaccinations 0)
@@ -709,7 +729,7 @@
   (set! vaccinations 0)
   (set! warning-fired 0)
   (set! game-start-time (time))
-  ;;(set! current-magic (choose receptor-types))
+  (set! current-magic (if magic-fixed "A" (choose receptor-types)))
   (set! vax-swarm (vax-idle vax-swarm))
   (parasites-destroy-all parasites)
   (set! parasites (build-parasites parasites-start-num current-magic))
@@ -722,7 +742,9 @@
 (define (render-game)
   (resize-glcanvas webgl-canvas)
   (resize-canvas canvas)
-  (explosions-render explosions)
+
+  (when (not reset-game)
+	(explosions-render explosions))
 
   (when (> (time) new-game-time)
 	(when reset-game (reset-game!))	
@@ -741,6 +763,8 @@
   (set! vax-swarm (update-vax-swarm vax-swarm parasites))
   (set! explosions (explosions-update explosions))
   
+  (when (eq? (animated-button-state syringe-button) "filling")
+	(set! vax-swarm (vax-in-syringe vax-swarm current-filling-type)))
   
   (ctx.clearRect 0 0 screen-width screen-height)	  
   (render-canvas)
@@ -755,6 +779,7 @@
   )
 
 (define init #f)
+(define current-filling-type "A")
 
 (define (build-vial x y type)
   (make-image-button 
@@ -769,8 +794,8 @@
    "" 
    (lambda (x) 
      (when (and (not reset-game) (not (eq? (animated-button-state syringe-button) "filling")))
-	   (set! vax-swarm (vax-in-syringe vax-swarm type))
 	   (when (> (animated-button-time syringe-button) 75)
+		 (set! current-filling-type type)
 		 (set! syringe-button
 		       (animated-button-modify-time 
 			(animated-button-modify-state 
@@ -824,14 +849,15 @@
 	   "plunger.png" 
 	   (lambda (x) 
 	     (when (and (not reset-game) 
-			(eq? (animated-button-state syringe-button) "filling")
-			(> (animated-button-time syringe-button) 75))
+			(eq? (animated-button-state syringe-button) "filling"))
 		   (set! vaccinations (+ vaccinations 1))
 		   (set! syringe-button
 			 (animated-button-modify-time 
 			  (animated-button-modify-state 
-			   syringe-button "emptying") 0))				 
-		   (set! vax-swarm (vax-inject vax-swarm)))))))
+			   syringe-button "emptying") 
+			  (- 75 (animated-button-time syringe-button))))
+		   (set! vax-swarm (vax-inject vax-swarm))
+		   )))))
   
   (set-camera-transform (mtranslate (camera-transform) (vector 0 5 0)))
   (clear-colour (list 0.0 0.0 0.0 0.0)))
