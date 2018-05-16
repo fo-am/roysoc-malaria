@@ -151,8 +151,8 @@
 		      (- (/ screen-height 2) (vy screen)) 
 		      0)))
 	  
-	  (translate (vadd  ;; 0,045
-		      (vmul world 0.035) ;; special uniform scale...
+	  (translate (vadd  ;; 0.045 0.035
+		      (vmul world 0.045) ;; special uniform scale...
 		      (vector 0 0 (* (vy norm) 0.1))))))
       (translate (vector 0 1 0))
       (scale (vector 8 8 1))
