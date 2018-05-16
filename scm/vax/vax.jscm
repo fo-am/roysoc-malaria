@@ -60,17 +60,18 @@
 (define parasite-max-age 100)
 (define parasite-growth-speed 0.3)
 (define parasite-death-speed 2)
-(define parasite-max-pop 60)
+(define parasite-max-pop 100)
 (define parasite-spawn-distance 1)
 
 (define parasites-start-num 10)
 
-(define vax-swarm-size 300)
+(define vax-swarm-size 200)
 (define vax-inject-amount 100)
 (define vax-inertia 0.02) ;; 0.05
 (define vax-speed -0.5)
 (define vax-collide-distance 1)
 (define vax-rot-speed 13)
+(define vax-dissolve-prob 0.0001)
 
 (define explosion-max-age 2)
 (define explosion-speed 0.05)
@@ -93,7 +94,7 @@
       (shuffle
        (append
 	(list magic)
-	(list secondary secondary)
+	(list (choose (list secondary magic primary)) secondary)
 	(build-list (- size 3)
 		    (lambda (_)
 		      primary)))))))
@@ -182,7 +183,8 @@
      pid pos 
      (vector 0 0 0) 
      (random 10)
-     (shuffle (receptors-clone parent-receptors pid))
+     (init-receptors parasite-num-receptors current-magic pid)
+     ;;(shuffle (receptors-clone parent-receptors pid))
      "alive"
      pid)))
 
@@ -214,10 +216,12 @@
       (/ 1 parasite-inertia)))))
 
 (define (update-parasite p parasites)
-  (let ((new-vel (parasite-swarm 
-		  (parasite-vel p)
-		  (parasite-pos p)
-		  (parasite-closest p parasites))))
+  (let ((new-vel (if (< (rndf) 0.2)
+		     (parasite-swarm 
+		      (parasite-vel p)
+		      (parasite-pos p)
+		      (parasite-closest p parasites))
+		     (parasite-vel p))))
     (with-primitive
      (parasite-root p)
      (cond 
@@ -250,6 +254,9 @@
 	      (list (parasite-spawn 
 		     (vadd (parasite-pos p) 
 			   (vmul new-pos parasite-spawn-distance))
+		     (parasite-receptors p))
+		    (parasite-spawn 
+		     (parasite-pos p)    
 		     (parasite-receptors p))
 		    (parasite-spawn 
 		     (vadd (parasite-pos p) 
@@ -448,6 +455,9 @@
 	 rec r))
    #f receptors))
 
+;(define (random-fold fn init l tries)
+;  (let ((tries ()))))
+
 ;; returns (pid,receptor)
 (define (vax-choose-parasite/receptor type parasites)
   (foldl
@@ -490,7 +500,7 @@
 	       (when (< dist vax-collide-distance)	
 		     (set! explosions (explosions-add explosions (vax-dest v) (vax-type v))))
 	       (make-vax
-		(if (< dist vax-collide-distance) vax-state-idle vax-state-chasing)
+		(if (or (< dist vax-collide-distance) (< (rndf) vax-dissolve-prob)) vax-state-idle vax-state-chasing)
 		(vax-pid v)
 		(vadd (vax-dest v) (parasite-vel p)) 
 		(calc-vax-swarm (vax-pos v) (vax-vel v) (vax-dest v))
@@ -503,7 +513,7 @@
 	     (let ((p (vax-choose-parasite/receptor (vax-type v) parasites)))
 	       (if (not p) ;; no new ones exist
 		   (make-vax
-		    (if (< (rndf) 0.01) vax-state-idle vax-state-chasing) 
+		    (if (< (rndf) 0.04) vax-state-idle vax-state-chasing) 
 		    -1 
 		    (vax-dest v)  
 		    (calc-vax-swarm (vax-pos v) (vax-vel v) (vax-dest v))
@@ -684,7 +694,7 @@
 (define vax-dummy '())
 
 (define current-vax "red")
-(define current-magic (choose receptor-types))
+(define current-magic "A");;(choose receptor-types))
 
 (define new-game-time (time))
 (define vaccinations 0)
@@ -699,7 +709,7 @@
   (set! vaccinations 0)
   (set! warning-fired 0)
   (set! game-start-time (time))
-  (set! current-magic (choose receptor-types))
+  ;;(set! current-magic (choose receptor-types))
   (set! vax-swarm (vax-idle vax-swarm))
   (parasites-destroy-all parasites)
   (set! parasites (build-parasites parasites-start-num current-magic))

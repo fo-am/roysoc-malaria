@@ -7,13 +7,15 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; useful constants for tweaking
 
+(define dollars-per-coin 1)
+(define global-risk-multiplier 1)
+
 (define transmission-low 4)
 (define transmission-high 8)
 
 (define high-pop-num 60)
 (define low-pop-num 10)
 
-;; in dollars: one coin = one dollar
 (define max-budget 30) 
 
 (define bednet-cost 0.2)
@@ -33,6 +35,7 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+;; in coins
 (define (make-budget vax drugs bednets)
   (list vax drugs bednets))
 (define (budget-vax b) (list-ref b 0))
@@ -51,9 +54,10 @@
 	(drugs (list-ref params 1))
 	(bednets (list-ref params 2))
 	(mu 0.5)) ;; 1/host lifespan
-    (max 0 (* mu (- (* (- 1 vaccine) (- 1 drugs) D)
-                    (/ 1 (* (- 1.000001 bednets) transmission)))))))
-
+    (* global-risk-multiplier
+       (max 0 (* mu (- (* (- 1 vaccine) (- 1 drugs) D)
+		       (/ 1 (* (- 1.000001 bednets) transmission))))))))
+  
 ;; parameters go from 0-1
 ;; budget in dollars
 ;; higher cost, less you get
@@ -63,10 +67,10 @@
    ;; over 1 makes no sense for the model 
    ;; (presume a person has no use for more than one bed net, vaccine etc)
    (min 1 (if good-vax
-	      (/ (/ (budget-vax b) goodvax-cost) population)
-	      (* (/ (/ (budget-vax b) badvax-cost) population) badvax-p-multiplier)))
-   (min 1 (/ (/ (budget-drugs b) drug-cost) population))
-   (min 1 (/ (/ (budget-bednets b) bednet-cost) population))))
+	      (/ (/ (* (budget-vax b) dollars-per-coin) goodvax-cost) population)
+	      (* (/ (/ (* (budget-vax b) dollars-per-coin) badvax-cost) population) badvax-p-multiplier)))
+   (min 1 (/ (/ (* (budget-drugs b) dollars-per-coin) drug-cost) population))
+   (min 1 (/ (/ (* (budget-bednets b) dollars-per-coin) bednet-cost) population))))
 
 ;; zoning
 (define volcanoes 0) ;; high pop/low risk
@@ -97,6 +101,8 @@
       (if (and (> (vx d) 127) (eq? (zone-col->id z) zone-id))
 	  p (generate-map-pos zone-id exclusion-ctx zones-ctx)))))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 (define (make-person pos infected anim-state zone-id suscep root) 
   (list pos infected anim-state zone-id suscep root))
 (define (person-pos p) (list-ref p 0))
@@ -107,6 +113,14 @@
 (define (person-suscep p) (list-ref p 4))
 (define (person-root p) (list-ref p 5))
 
+(define (hex->col r g b) (vector (/ r 255) (/ g 255) (/ b 255)))
+
+(define skin-tones (list (hex->col 0x8d 0x55 0x24)
+			 (hex->col 0xc6 0x86 0x42)
+			 (hex->col 0xe0 0xac 0x69)
+			 (hex->col 0xf1 0xc2 0x7d)
+			 (hex->col 0xff 0xdb 0xac)))
+
 (define (build-person zone-id pos)
   (make-person
    pos
@@ -116,6 +130,7 @@
    (rndf)
    (with-state
     (shader-assign-compiled "person")
+    (colour (choose skin-tones))
     ;; pos is in map pixel space
     ;; so divide to normalise (0 - 1)
     (let ((map-aspect (/ map-width map-height))
@@ -140,7 +155,7 @@
 		      (vmul world 0.045) ;; special uniform scale...
 		      (vector 0 0 (* (vy norm) 0.1))))))
       (translate (vector 0 1 0))
-      (scale (vector 6 6 1))
+      (scale (vector 8 8 1))
       (when (< (rndf) 0.5) (scale (vector -1 1 1)))
       (load-primitive "models/plane.obj")
       ))))
@@ -149,15 +164,15 @@
   (let ((infected (> y (person-suscep p))))
     (let ((anim-state 
 	   (anim-state-advance
+	    (if infected 1 0)
 	    (person-anim-state p)
-	    (if infected loops-infected loops-uninfected))))
+	    anim-loops)))
+      (when (eq? anim-state undefined)
+	    (msg (person-anim-state p)))
       (with-primitive 
        (person-root p)
        (texture (load-texture 
-       		 (anim-state-get-frame 
-       		  anim-state
-       		  (if infected
-       		      loops-infected loops-uninfected)))))
+       		 (anim-state-get-frame anim-state anim-loops))))
       (person-update-anim-state p anim-state))))
     
 (define (update-people!)
@@ -305,26 +320,26 @@
   (set! drugs-stack (build-stack 1 400 (- screen-height 120) "Drugs"))
   (set! bednets-stack (build-stack 2 550 (- screen-height 120) "Bednets"))
 
-  (with-state
-   (translate (vector 2 0 (* 0.65 0.1))) 
-   (scale (vector -11 11 1))
-   (shader-assign-compiled "person")
-   (texture (load-texture "tree-4.png"))
-   (load-primitive "models/plane.obj"))
+  ;; (with-state
+  ;;  (translate (vector 2 0 (* 0.65 0.1))) 
+  ;;  (scale (vector -11 11 1))
+  ;;  (shader-assign-compiled "person")
+  ;;  (texture (load-texture "tree-4.png"))
+  ;;  (load-primitive "models/plane.obj"))
 
-  (with-state
-   (translate (vector -3 4 (* 0.5 0.1))) 
-   (scale (vector 13 13 1))
-   (shader-assign-compiled "person")
-   (texture (load-texture "tree-3.png"))
-   (load-primitive "models/plane.obj"))
+  ;; (with-state
+  ;;  (translate (vector -3 4 (* 0.5 0.1))) 
+  ;;  (scale (vector 13 13 1))
+  ;;  (shader-assign-compiled "person")
+  ;;  (texture (load-texture "tree-3.png"))
+  ;;  (load-primitive "models/plane.obj"))
 
-  (with-state
-   (translate (vector 1 4 (* 0.5 0.1))) 
-   (scale (vector 9 13 1))
-   (shader-assign-compiled "person")
-   (texture (load-texture "tree-5.png"))
-   (load-primitive "models/plane.obj"))
+  ;; (with-state
+  ;;  (translate (vector 1 4 (* 0.5 0.1))) 
+  ;;  (scale (vector 9 13 1))
+  ;;  (shader-assign-compiled "person")
+  ;;  (texture (load-texture "tree-5.png"))
+  ;;  (load-primitive "models/plane.obj"))
 
 	
   ;; draw the map into a context so we can read pixels
