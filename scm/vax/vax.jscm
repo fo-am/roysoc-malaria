@@ -20,7 +20,7 @@
 
 (define receptor-create-distance 0.5)
 (define receptor-types (list "A" "B" "C" "D" "E" "F"))
-(define magic-fixed #t)
+(define magic-fixed #f)
 
 (define (hex->col r g b) (vector (/ r 255) (/ g 255) (/ b 255)))
 
@@ -61,15 +61,16 @@
 (define parasite-max-age 100)
 (define parasite-growth-speed 0.3)
 (define parasite-death-speed 2)
-(define parasite-max-pop 80)
+(define parasite-max-pop 60)
 (define parasite-spawn-distance 1)
 (define parasite-spawn-prob 0.002)
+(define parasite-max-velocity 0.05)
 
 (define parasites-start-num 10)
 
 (define vax-swarm-size 200)
-(define vax-inject-amount 1)
-(define vax-inject-fill-prob 0.75)
+(define vax-inject-amount 100)
+(define vax-inject-fill-prob 1)
 (define vax-inertia 0.05) ;; 0.05
 (define vax-speed -0.5)
 (define vax-collide-distance 1)
@@ -79,7 +80,16 @@
 (define explosion-max-age 2)
 (define explosion-speed 0.05)
 
-(define inject-pos (vector 0 -13.3 0))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define (screen->world screen)
+  ;; convert to screen space pixels (0 - screen-width/height)
+  (let ((world (vector
+		(- (vx screen) (/ screen-width 2))
+		(- (/ screen-height 2) (vy screen)) 
+		0)))    
+    (vmul world 0.045) ;; special uniform scale...
+    ))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; building an randomised array of receptor types
@@ -209,22 +219,25 @@
 
 (define (parasite-swarm vel pos closest)
   (let ((diff (vsub pos closest)))
-    (vadd
-     (vmul vel parasite-inertia)
-     (vmul
-      (vadd 
-       (vmul (vmul (vnormalise diff) parasite-repel) 
-	     (Math.pow (/ 1 (vmag diff)) 1.5))
-       (vmul (vnormalise pos) parasite-cluster))
-      (/ 1 parasite-inertia)))))
+    (let ((vel (vadd
+		(vmul vel parasite-inertia)
+		(vmul
+		 (vadd 
+		  (vmul (vmul (vnormalise diff) parasite-repel) 
+			(Math.pow (/ 1 (vmag diff)) 1.5))
+		  (vmul (vnormalise pos) parasite-cluster))
+		 (/ 1 parasite-inertia)))))
+      (if (> (vmag vel) parasite-max-velocity)
+	  (vmul (vnormalise vel) parasite-max-velocity)
+	  vel))))
 
 (define (update-parasite p parasites)
-  (let ((new-vel (if (< (rndf) 0.2)
-		     (parasite-swarm 
-		      (parasite-vel p)
-		      (parasite-pos p)
-		      (parasite-closest p parasites))
-		     (parasite-vel p))))
+  (let ((new-vel 
+	 (parasite-swarm 
+	  (parasite-vel p)
+	  (parasite-pos p)
+	  (parasite-closest p parasites))
+	 (parasite-vel p)))
     (with-primitive
      (parasite-root p)
      (cond 
@@ -400,6 +413,14 @@
 	  (vmul vel (- 1 vax-inertia))
 	  )))
 
+(define (vax-none-chasing? vs)
+  (foldl
+   (lambda (v r)
+     (if (and r (eq? (vax-state v) vax-state-chasing))
+	 #f r))
+   #t
+   vs))
+
 (define (vax-inject vs)
   (map
    (lambda (v)
@@ -517,9 +538,7 @@
 	       (make-vax
 		(if (or 
 		     (< dist vax-collide-distance) 
-		     (and 
-		      (not (eq? (vax-type v) current-magic))
-		      (< (rndf) vax-dissolve-prob)))
+		     (< (rndf) vax-dissolve-prob))
 		    vax-state-idle vax-state-chasing)
 		(vax-pid v)
 		(vadd (vax-dest v) (parasite-vel p)) 
@@ -763,8 +782,8 @@
   (set! vax-swarm (update-vax-swarm vax-swarm parasites))
   (set! explosions (explosions-update explosions))
   
-  (when (eq? (animated-button-state syringe-button) "filling")
-	(set! vax-swarm (vax-in-syringe vax-swarm current-filling-type)))
+;  (when (eq? (animated-button-state syringe-button) "filling")
+;	(set! vax-swarm (vax-in-syringe vax-swarm current-filling-type)))
   
   (ctx.clearRect 0 0 screen-width screen-height)	  
   (render-canvas)
@@ -793,9 +812,11 @@
     (else "vial-f.png"))
    "" 
    (lambda (x) 
-     (when (and (not reset-game) (not (eq? (animated-button-state syringe-button) "filling")))
+     (when (and (not reset-game) 
+		(not (eq? (animated-button-state syringe-button) "filling")))
 	   (when (> (animated-button-time syringe-button) 75)
 		 (set! current-filling-type type)
+		 (set! vax-swarm (vax-in-syringe vax-swarm current-filling-type))
 		 (set! syringe-button
 		       (animated-button-modify-time 
 			(animated-button-modify-state 
@@ -832,7 +853,7 @@
 			(build-cube)))
 
   (let ((ypos (- screen-height 80))
-	(spos (project-point inject-pos)))
+	(spos (vector (/ screen-width 2) (- screen-height 80) 0)))
     (set! vial1-button (build-vial (- (/ screen-width 2) 200) ypos "A"))
     (set! vial2-button (build-vial (- (/ screen-width 2) 100) ypos "B"))
     (set! vial3-button (build-vial (+ (/ screen-width 2) 100) ypos "C"))
@@ -840,7 +861,9 @@
     (set! vial5-button (build-vial (+ (/ screen-width 2) 300) ypos "E"))
     (set! vial6-button (build-vial (- (/ screen-width 2) 300) ypos "F"))
     (set! infect-bar (make-progress-bar 30 10 (- screen-width 60) 30 "HEALTH:" "20pt Amatic" 50))
-     
+    
+    (set! inject-pos (screen->world (vector (vx spos) (+ (vy spos) 10) 0)))
+
     (set! syringe-button 
 	  (make-animated-button 
 ;;	   0 -14 
@@ -848,14 +871,16 @@
 	   "syringe.png" 
 	   "plunger.png" 
 	   (lambda (x) 
-	     (when (and (not reset-game) 
-			(eq? (animated-button-state syringe-button) "filling"))
+	     (when (and
+		    (> (animated-button-time syringe-button) 75)
+		    (not reset-game) 
+		    (eq? (animated-button-state syringe-button) "filling"))
 		   (set! vaccinations (+ vaccinations 1))
 		   (set! syringe-button
 			 (animated-button-modify-time 
 			  (animated-button-modify-state 
 			   syringe-button "emptying") 
-			  (- 75 (animated-button-time syringe-button))))
+			  0))
 		   (set! vax-swarm (vax-inject vax-swarm))
 		   )))))
   
