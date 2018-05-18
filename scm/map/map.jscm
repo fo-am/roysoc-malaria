@@ -121,6 +121,12 @@
 			 (hex->col 0xf1 0xc2 0x7d)
 			 (hex->col 0xff 0xdb 0xac)))
 
+
+;; (let ((world (vector
+;; 	      (- (vx screen) (/ screen-width 2))
+;; 	      (- (/ screen-height 2) (vy screen)) 
+;; 	      0))
+
 (define (build-person zone-id pos)
   (make-person
    pos
@@ -145,15 +151,15 @@
 		     ;; place - not screen-height
 		     ;; as the aspect ratio is different
 		     (* (vy norm) (/ screen-width map-aspect))
-		     0)))
+		     0)))	
+	;; convert into ortho world coordinates (-20 to 20) - but account for half scale
 	(let ((world (vector
-		      (- (vx screen) (/ screen-width 2))
-		      (- (/ screen-height 2) (vy screen)) 
+		      (* (/ (- (vx screen) (/ screen-width 2)) screen-width) (* 40 scr-aspect))
+		      (* (/ (- (/ screen-height 2) (vy screen)) screen-height) 40) 
 		      0)))
-	  
-	  (translate (vadd  ;; 0.045 0.035
-		      (vmul world 0.045) ;; special uniform scale...
-		      (vector 0 0 (* (vy norm) 0.1))))))
+	  ;; add z to sort overlapping people
+	  (translate (vadd world (vector 0 0 (* (vy norm) 0.1))))))
+      
       (translate (vector 0 1 0))
       (scale (vector 8 8 1))
       (when (< (rndf) 0.5) (scale (vector -1 1 1)))

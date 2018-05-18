@@ -75,7 +75,8 @@
 (define vax-speed -0.5)
 (define vax-collide-distance 1)
 (define vax-rot-speed 13)
-(define vax-dissolve-prob 0.005)
+;;(define vax-dissolve-prob 0.005)
+(define vax-dissolve-prob 0.04)
 
 (define explosion-max-age 2)
 (define explosion-speed 0.05)
@@ -536,9 +537,7 @@
 	       (when (< dist vax-collide-distance)	
 		     (set! explosions (explosions-add explosions (vax-dest v) (vax-type v))))
 	       (make-vax
-		(if (or 
-		     (< dist vax-collide-distance) 
-		     (< (rndf) vax-dissolve-prob))
+		(if (< dist vax-collide-distance) 
 		    vax-state-idle vax-state-chasing)
 		(vax-pid v)
 		(vadd (vax-dest v) (parasite-vel p)) 
@@ -552,7 +551,7 @@
 	     (let ((p (vax-choose-parasite/receptor (vax-type v) parasites)))
 	       (if (not p) ;; no new ones exist
 		   (make-vax
-		    (if (< (rndf) 0.04) vax-state-idle vax-state-chasing) 
+		    (if (< (rndf) vax-dissolve-prob) vax-state-idle vax-state-chasing) 
 		    -1 
 		    (vax-dest v)  
 		    (calc-vax-swarm (vax-pos v) (vax-vel v) (vax-dest v))
