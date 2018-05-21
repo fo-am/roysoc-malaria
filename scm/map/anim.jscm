@@ -57,10 +57,13 @@
     (list "pat head 1 red.png"
 	  "pat head 2 red.png"
 	  "pat head 3 red.png"
+	  "pat head 3 red.png"
+	  "pat head 3 red.png"
+	  "pat head 3 red.png"
+	  "pat head 3 red.png"
+	  "pat head 3 red.png"
 	  "pat head 4 red.png"
-	  "pat head 5 red.png")
-    (list "yogi 1 red.png"
-	  "yogi 2 red.png"))))
+	  "pat head 5 red.png"))))
 
 (define anim-path "frames/")
 

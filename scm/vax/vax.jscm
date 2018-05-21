@@ -63,8 +63,9 @@
 (define parasite-death-speed 2)
 (define parasite-max-pop 60)
 (define parasite-spawn-distance 1)
-(define parasite-spawn-prob 0.002)
+(define parasite-spawn-prob 0.00) ;; 0.002
 (define parasite-max-velocity 0.05)
+(define parasite-swarm-centre (vector 0 5 0))
 
 (define parasites-start-num 10)
 
@@ -226,7 +227,7 @@
 		 (vadd 
 		  (vmul (vmul (vnormalise diff) parasite-repel) 
 			(Math.pow (/ 1 (vmag diff)) 1.5))
-		  (vmul (vnormalise pos) parasite-cluster))
+		  (vmul (vnormalise (vsub pos parasite-swarm-centre)) parasite-cluster))
 		 (/ 1 parasite-inertia)))))
       (if (> (vmag vel) parasite-max-velocity)
 	  (vmul (vnormalise vel) parasite-max-velocity)
@@ -374,8 +375,8 @@
    n
    (lambda (_)
      (build-parasite 
-      (vmul (vector (crndf) (crndf) 0)
-	    parasite-create-distance)
+      (vadd (vmul (vector (crndf) (crndf) 0) 
+		  parasite-create-distance) parasite-swarm-centre)
       magic))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -422,6 +423,12 @@
    #t
    vs))
 
+(define (vrndvec-box tl br)
+  (vector 
+   (+ (vx tl) (* (rndf) (- (vx br) (vx tl))))
+   (+ (vy tl) (* (rndf) (- (vy br) (vy tl))))
+   0))
+
 (define (vax-inject vs)
   (map
    (lambda (v)
@@ -432,7 +439,7 @@
 	-1
 	(vector 0 0 0)
 	(vector 0 (+ 0.1 (* (rndf) 0.2)) 0)
-	(vadd (vector (+ (crndf) 0.3) (* (crndf) 2.5) 0) inject-pos)
+	(vrndvec-box inject-pos-tl inject-pos-br)
 	(vax-root v)
 	#f
 	(vax-type v)
@@ -469,7 +476,7 @@
 	    -1
 	    (vector 0 0 0)
 	    (vector 0 0 0)
-	    (vadd (vector (crndf) (* (crndf) 2.5) 0) inject-pos)
+	    (vrndvec-box inject-pos-tl inject-pos-br)
 	    (vax-root v)
 	    #f type (random 360)))
 	  (else v)))
@@ -638,34 +645,6 @@
 (define (explosions-render es)
   (for-each (lambda (e) (explosion-render e)) es))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; 2D schenanigans
-
-(define syringe-button '())
-
-(define (render-canvas)
-  (image-button-update vial1-button 0)
-  (image-button-update vial2-button 0)
-  (image-button-update vial3-button 0)
-  (image-button-update vial4-button 0)
-  (image-button-update vial5-button 0)
-  (image-button-update vial6-button 0)
-  (animated-button-update syringe-button 0)
-
-  (animated-button-render! syringe-button)
-  (image-button-render! vial1-button)
-  (image-button-render! vial2-button)
-  (image-button-render! vial3-button)
-  (image-button-render! vial4-button)
-  (image-button-render! vial5-button)
-  (image-button-render! vial6-button)
-
-  (progress-bar-render! infect-bar)
-
-  (render-popups!)
-  
-  )
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; preload things
 
@@ -757,6 +736,31 @@
 	       (animated-button-modify-state 
 		syringe-button "emptying") 0))))
 
+(define syringe-button '())
+
+(define (render-canvas)
+  (image-button-update vial1-button 0)
+  (image-button-update vial2-button 0)
+  (image-button-update vial3-button 0)
+  (image-button-update vial4-button 0)
+  (image-button-update vial5-button 0)
+  (image-button-update vial6-button 0)
+  (animated-button-update syringe-button 0)
+
+  (animated-button-render! syringe-button)
+  (image-button-render! vial1-button)
+  (image-button-render! vial2-button)
+  (image-button-render! vial3-button)
+  (image-button-render! vial4-button)
+  (image-button-render! vial5-button)
+  (image-button-render! vial6-button)
+
+  (progress-bar-render! infect-bar)
+
+  (render-popups!)
+  )
+
+
 (define (render-game)
   (resize-glcanvas webgl-canvas)
   (resize-canvas canvas)
@@ -821,8 +825,11 @@
 			(animated-button-modify-state 
 			 syringe-button "filling") 0)))))))
 
+(define inject-pos-tl (vector 0 0 0))
+(define inject-pos-br (vector 0 0 0))
 
 (define (run-init)
+  (ortho 15)
   (resize-glcanvas webgl-canvas)
   (canvas-setup)
   (resize-canvas canvas)
@@ -852,7 +859,7 @@
 			(build-cube)))
 
   (let ((ypos (- screen-height 80))
-	(spos (vector (/ screen-width 2) (- screen-height 80) 0)))
+	(spos (vector (/ screen-width 2) (- screen-height 160) 0)))
     (set! vial1-button (build-vial (- (/ screen-width 2) 200) ypos "A"))
     (set! vial2-button (build-vial (- (/ screen-width 2) 100) ypos "B"))
     (set! vial3-button (build-vial (+ (/ screen-width 2) 100) ypos "C"))
@@ -861,12 +868,10 @@
     (set! vial6-button (build-vial (- (/ screen-width 2) 300) ypos "F"))
     (set! infect-bar (make-progress-bar 30 10 (- screen-width 60) 30 "HEALTH:" "20pt Amatic" 50))
     
-    (set! inject-pos (screen->world (vector (vx spos) (+ (vy spos) 10) 0)))
 
     (set! syringe-button 
 	  (make-animated-button 
-;;	   0 -14 
-	   (vx spos) (- (vy spos) 80) 
+	   (vx spos) (vy spos)
 	   "syringe.png" 
 	   "plunger.png" 
 	   (lambda (x) 
@@ -881,12 +886,21 @@
 			   syringe-button "emptying") 
 			  0))
 		   (set! vax-swarm (vax-inject vax-swarm))
-		   )))))
+		   ))))
+
+    (let ((top-left (vector (- (vx spos) (animated-button-width syringe-button))
+		     (- (vy spos) (animated-button-height syringe-button))
+		     0)))
+      (set! inject-pos-tl 
+	    (unproject-point-ortho (vadd top-left (vector 19 87 0))))
+      (set! inject-pos-br 
+	    (unproject-point-ortho (vadd top-left (vector 43 163 0))))))
   
-  (set-camera-transform (mtranslate (camera-transform) (vector 0 5 0)))
+  
+  ;;(set-camera-transform (mtranslate (camera-transform) (vector 0 5 0)))
   (clear-colour (list 0.0 0.0 0.0 0.0)))
 
-(define (flot)
+(define (start)
   (when  (and
 	  (not init)
 	  (meshes-loaded?)
@@ -901,5 +915,5 @@
 (resize-canvas canvas)
 (ctx.fillText "Loading..." 100 100)
 
-(every-frame (flot))
+(every-frame (start))
 	 

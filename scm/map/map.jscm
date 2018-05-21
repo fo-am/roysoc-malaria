@@ -91,7 +91,7 @@
 (define map-height 2160)
 
 (define (read-map ctx x y) 
-  (let ((t (ctx.getImageData x (- map-height y) 1 1)))
+  (let ((t (ctx.getImageData x y 1 1)))
     t.data))
 
 (define (generate-map-pos zone-id exclusion-ctx zones-ctx)
@@ -100,6 +100,28 @@
 	  (z (read-map zones-ctx (vx p) (vy p))))
       (if (and (> (vx d) 127) (eq? (zone-col->id z) zone-id))
 	  p (generate-map-pos zone-id exclusion-ctx zones-ctx)))))
+
+(define (map->world pos)
+    ;; pos is in map pixel space
+    ;; so divide to normalise (0 - 1)
+    (let ((map-aspect (/ map-width map-height))
+	  (scr-aspect (/ screen-width screen-height))
+	  (norm (vector (/ (vx pos) map-width)
+			(/ (vy pos) map-height)
+			0)))
+      ;; convert to screen space pixels (0 - screen-width/height)
+      (let ((screen (vector
+		     (* (vx norm) screen-width)
+		     ;; need to sort out y so it ends at the right 
+		     ;; place - not screen-height
+		     ;; as the aspect ratio is different
+		     (* (vy norm) (/ screen-width map-aspect))
+		     0)))	
+	;; convert into ortho world coordinates (-20 to 20) - but account for half scale
+	(vector
+	 (* (/ (- (vx screen) (/ screen-width 2)) screen-width) (* 40 scr-aspect))
+	 (* (/ (- (/ screen-height 2) (vy screen)) screen-height) 40) 
+	 (* (vy norm) 0.1)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -121,12 +143,6 @@
 			 (hex->col 0xf1 0xc2 0x7d)
 			 (hex->col 0xff 0xdb 0xac)))
 
-
-;; (let ((world (vector
-;; 	      (- (vx screen) (/ screen-width 2))
-;; 	      (- (/ screen-height 2) (vy screen)) 
-;; 	      0))
-
 (define (build-person zone-id pos)
   (make-person
    pos
@@ -137,34 +153,11 @@
    (with-state
     (shader-assign-compiled "person")
     (colour (choose skin-tones))
-    ;; pos is in map pixel space
-    ;; so divide to normalise (0 - 1)
-    (let ((map-aspect (/ map-width map-height))
-	  (scr-aspect (/ screen-width screen-height))
-	  (norm (vector (/ (vx pos) map-width)
-			(- 1 (/ (vy pos) map-height))
-			0)))
-      ;; convert to screen space pixels (0 - screen-width/height)
-      (let ((screen (vector
-		     (* (vx norm) screen-width)
-		     ;; need to sort out y so it ends at the right 
-		     ;; place - not screen-height
-		     ;; as the aspect ratio is different
-		     (* (vy norm) (/ screen-width map-aspect))
-		     0)))	
-	;; convert into ortho world coordinates (-20 to 20) - but account for half scale
-	(let ((world (vector
-		      (* (/ (- (vx screen) (/ screen-width 2)) screen-width) (* 40 scr-aspect))
-		      (* (/ (- (/ screen-height 2) (vy screen)) screen-height) 40) 
-		      0)))
-	  ;; add z to sort overlapping people
-	  (translate (vadd world (vector 0 0 (* (vy norm) 0.1))))))
-      
-      (translate (vector 0 1 0))
-      (scale (vector 8 8 1))
-      (when (< (rndf) 0.5) (scale (vector -1 1 1)))
-      (load-primitive "models/plane.obj")
-      ))))
+    (translate (map->world pos))
+    (translate (vector 0 2 0))
+    (scale (vector 10 10 1))
+    (when (< (rndf) 0.5) (scale (vector -1 1 1)))
+    (load-primitive "models/plane.obj"))))
 
 (define (update-person p y)
   (let ((infected (> y (person-suscep p))))
@@ -317,6 +310,7 @@
 (define zones-ctx 0)
 
 (define (run-init)
+  (ortho 20)
   (resize-glcanvas webgl-canvas)
   (canvas-setup)
   (resize-canvas canvas)
@@ -327,26 +321,26 @@
   (set! bednets-stack (build-stack 2 550 (- screen-height 120) "Bednets"))
 
   ;; (with-state
-  ;;  (translate (vector 2 0 (* 0.65 0.1))) 
-  ;;  (scale (vector -11 11 1))
+  ;;  (translate (map->world (vector 900 850 0)))
+  ;;  (translate (vector 0 3 0))
+  ;;  (scale (vector -12 18 1))
   ;;  (shader-assign-compiled "person")
-  ;;  (texture (load-texture "tree-4.png"))
+  ;;  (texture (load-texture "tree-1.png"))
   ;;  (load-primitive "models/plane.obj"))
 
   ;; (with-state
-  ;;  (translate (vector -3 4 (* 0.5 0.1))) 
+  ;;  (translate (map->world (vector 350 450 0)))
   ;;  (scale (vector 13 13 1))
   ;;  (shader-assign-compiled "person")
-  ;;  (texture (load-texture "tree-3.png"))
+  ;;  (texture (load-texture "tree-2.png"))
   ;;  (load-primitive "models/plane.obj"))
 
   ;; (with-state
-  ;;  (translate (vector 1 4 (* 0.5 0.1))) 
+  ;;  (translate (map->world (vector 400 500 0)))
   ;;  (scale (vector 9 13 1))
   ;;  (shader-assign-compiled "person")
   ;;  (texture (load-texture "tree-5.png"))
   ;;  (load-primitive "models/plane.obj"))
-
 	
   ;; draw the map into a context so we can read pixels
   ;; out of it...
