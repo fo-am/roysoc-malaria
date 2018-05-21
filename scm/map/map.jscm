@@ -175,20 +175,21 @@
       (person-update-anim-state p anim-state))))
     
 (define (update-people!)
-  (let ((low-pop-params (budget->params budget low-pop-num #t))
-	(high-pop-params (budget->params budget high-pop-num #t)))
-    (let ((risk
-	   (list
-	    (model-risk high-pop-params transmission-low) ;; volcanoes
-	    (model-risk low-pop-params transmission-low) ;; desert
-	    (model-risk high-pop-params transmission-high) ;; lakes
-	    (model-risk low-pop-params transmission-high)))) ;; forest	    
-      (set! people
-	    (map
-	     (lambda (p)
-	       (update-person p (list-ref risk (person-zone-id p))))
-	     people)))))
-
+  (let ((supervax (toggle-button-state supervax-toggle)))
+    (let ((low-pop-params (budget->params budget low-pop-num supervax))
+	  (high-pop-params (budget->params budget high-pop-num supervax)))
+      (let ((risk
+	     (list
+	      (model-risk high-pop-params transmission-low) ;; volcanoes
+	      (model-risk low-pop-params transmission-low) ;; desert
+	      (model-risk high-pop-params transmission-high) ;; lakes
+	      (model-risk low-pop-params transmission-high)))) ;; forest	    
+	(set! people
+	      (map
+	       (lambda (p)
+		 (update-person p (list-ref risk (person-zone-id p))))
+	       people))))))
+  
 (define (build-population num zone-id exclusion-ctx zones-ctx)
   (build-list 
    num (lambda (i) 
@@ -263,6 +264,8 @@
   "coin.png"
   "plus.png"
   "minus.png"
+  "toggle.png"
+  "tick.png"
   )
  (lambda ()
    0))
@@ -290,7 +293,9 @@
   (render-stack! vax-stack)
   (render-stack! drugs-stack)
   (render-stack! bednets-stack)
-  (coin-stack-render! total-stack))
+  (coin-stack-render! total-stack)
+  (set! supervax-toggle (toggle-button-update supervax-toggle))
+  (toggle-button-render! supervax-toggle))
 
 (define people-frame-time 0)
 
@@ -315,32 +320,33 @@
   (canvas-setup)
   (resize-canvas canvas)
   
-  (set! total-stack (make-coin-stack 100 (- screen-height 120) "coin.png" "Budget" start-budget))
+  (set! total-stack (make-coin-stack 50 (- screen-height 120) "coin.png" "Budget" start-budget))
+  (set! supervax-toggle (make-toggle-button 150 (- screen-height 40) "toggle.png" "tick.png" "Max Vax" #f))
   (set! vax-stack (build-stack 0 250 (- screen-height 120) "Vaccination"))
   (set! drugs-stack (build-stack 1 400 (- screen-height 120) "Drugs"))
   (set! bednets-stack (build-stack 2 550 (- screen-height 120) "Bednets"))
+  
+  (with-state
+   (translate (map->world (vector 900 850 0)))
+   (translate (vector 0 3 0))
+   (scale (vector -12 18 1))
+   (shader-assign-compiled "person")
+   (texture (load-texture "tree-1.png"))
+   (load-primitive "models/plane.obj"))
 
-  ;; (with-state
-  ;;  (translate (map->world (vector 900 850 0)))
-  ;;  (translate (vector 0 3 0))
-  ;;  (scale (vector -12 18 1))
-  ;;  (shader-assign-compiled "person")
-  ;;  (texture (load-texture "tree-1.png"))
-  ;;  (load-primitive "models/plane.obj"))
+  (with-state
+   (translate (map->world (vector 350 450 0)))
+   (scale (vector 13 13 1))
+   (shader-assign-compiled "person")
+   (texture (load-texture "tree-2.png"))
+   (load-primitive "models/plane.obj"))
 
-  ;; (with-state
-  ;;  (translate (map->world (vector 350 450 0)))
-  ;;  (scale (vector 13 13 1))
-  ;;  (shader-assign-compiled "person")
-  ;;  (texture (load-texture "tree-2.png"))
-  ;;  (load-primitive "models/plane.obj"))
-
-  ;; (with-state
-  ;;  (translate (map->world (vector 400 500 0)))
-  ;;  (scale (vector 9 13 1))
-  ;;  (shader-assign-compiled "person")
-  ;;  (texture (load-texture "tree-5.png"))
-  ;;  (load-primitive "models/plane.obj"))
+  (with-state
+   (translate (map->world (vector 400 500 0)))
+   (scale (vector 9 13 1))
+   (shader-assign-compiled "person")
+   (texture (load-texture "tree-5.png"))
+   (load-primitive "models/plane.obj"))
 	
   ;; draw the map into a context so we can read pixels
   ;; out of it...
