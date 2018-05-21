@@ -29,7 +29,6 @@
 (define receptor-c-col (hex->col 0x7b 0xe0 0xad))
 (define receptor-d-col (hex->col 0x00 0x81 0xaf))
 (define receptor-e-col (hex->col 0xf6 0x10 0x67))
-;;(define receptor-f-col (hex->col 0xf7 0x92 0x56))
 (define receptor-f-col (hex->col 0xf7 0xd0 0x8a))
 
 (define (type->col type)
@@ -326,18 +325,18 @@
     (cond 
      ((> vaccinations 1)
       (set! vaccination-run 0)
-      (fire-popup! "bad" (list (+ "CURED: " vaccinations " VACCINATIONS USED")
-			       "CAN YOU DO BETTER?")))
+      (fire-popup! "bad" (list (+ "Cured - but " vaccinations " antibodies used")
+			       "Can you do better and cure it in one go?")))
      (else
       (set! vaccination-run (+ vaccination-run 1))
       (cond 
        ((> vaccination-run 2)
 	(set! vaccination-run 0)
-	(fire-popup! "bad" (list "CURED IN ONE: THREE IN A ROW"
-				 "YOU ARE A PRO!")))
+	(fire-popup! "bad" (list "Win! You're a pro - you've found the special"
+				 "malaria antibody three times in a row!")))
        (else
-	(fire-popup! "bad" (list "CURED: SPECIAL VACCINATION DISCOVERED"
-				 "WELL DONE! CAN YOU FIND THREE IN A ROW?"))))))
+	(fire-popup! "bad" (list "Cured in one! Special antibody discovered."
+				 "If you can do that three times in a row, you'll be a pro."))))))
     (set! new-game-time (+ (time) popup-lifespan))
     (set! reset-game #t)
     parasites)
@@ -345,7 +344,7 @@
     (set! vaccination-run 0)
     (set! new-game-time (+ (time) popup-lifespan))
     (set! reset-game #t)
-    (fire-popup! "bad" (list "INFECTION OUT OF CONTROL" "TRY AGAIN"))
+    (fire-popup! "bad" (list "Infection out of control." "Try again."))
     parasites)
    (else
     (parasites-spawn
@@ -771,8 +770,10 @@
 	  (set! infect-bar (progress-bar-update-p infect-bar (- 100 p)))
 	  (when (and (> p 70) (not warning-fired))
 		(set! warning-fired #t)
-		(fire-popup! "bad" (list "WARNING:" 
-					 "INFECTION SPREADING!!")))
+		(fire-popup! 
+		 "bad" 
+		 (list "Warning! Infection spreading. Look for the special" 
+		       "antibody that will kill all the parasites!")))
 	  (when (and warning-fired (< p 70)) 
 		(set! warning-fired #f))))
   
