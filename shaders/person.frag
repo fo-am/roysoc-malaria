@@ -12,11 +12,12 @@ void main() {
     vec3 n = normalize(N);
     float diffuse = dot(vec3(0,0,1),n);
     float alpha = texture2D(texture, vec2(T.s, T.t)).a;
-    vec3 col = texture2D(texture, vec2(T.s, T.t)).xyz;
 
     if(alpha < 0.1) {
-        discard;
+      discard;
     }
+
+    vec3 col = texture2D(texture, vec2(T.s, T.t)).xyz;
 
     if (col.b>0.5) {
       col*=DiffuseColour;

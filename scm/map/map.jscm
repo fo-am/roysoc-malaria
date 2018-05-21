@@ -327,27 +327,62 @@
   (set! bednets-stack (build-stack 2 550 (- screen-height 120) "Bednets"))
   
   (with-state
-   (translate (map->world (vector 900 850 0)))
+   (translate (map->world (vector 900 900 0)))
    (translate (vector 0 3 0))
-   (scale (vector -12 18 1))
+   (scale (vector 12 16 1))
    (shader-assign-compiled "person")
    (texture (load-texture "tree-1.png"))
    (load-primitive "models/plane.obj"))
 
   (with-state
-   (translate (map->world (vector 350 450 0)))
-   (scale (vector 13 13 1))
+   (translate (map->world (vector 1100 1000 0)))
+   (translate (vector 0 3 0))
+   (scale (vector 16 16 1))
    (shader-assign-compiled "person")
-   (texture (load-texture "tree-2.png"))
+   (texture (load-texture "tree-4.png"))
    (load-primitive "models/plane.obj"))
 
   (with-state
-   (translate (map->world (vector 400 500 0)))
-   (scale (vector 9 13 1))
+   (translate (map->world (vector 1700 1000 0)))
+   (translate (vector 0 3 0))
+   (scale (vector 16 16 1))
+   (shader-assign-compiled "person")
+   (texture (load-texture "tree-6.png"))
+   (load-primitive "models/plane.obj"))
+
+  (with-state
+   (translate (map->world (vector 1850 1100 0)))
+   (translate (vector 0 3 0))
+   (scale (vector 16 21 1))
    (shader-assign-compiled "person")
    (texture (load-texture "tree-5.png"))
    (load-primitive "models/plane.obj"))
 	
+  (with-state
+   (translate (map->world (vector 1950 1200 0)))
+   (translate (vector 0 3 0))
+   (scale (vector -14 14 1))
+   (shader-assign-compiled "person")
+   (texture (load-texture "tree-6.png"))
+   (load-primitive "models/plane.obj"))
+	
+  (with-state
+   (translate (map->world (vector 2000 1400 0)))
+   (translate (vector 0 3 0))
+   (scale (vector -16 16 1))
+   (shader-assign-compiled "person")
+   (texture (load-texture "tree-4.png"))
+   (load-primitive "models/plane.obj"))
+
+  (with-state
+   (translate (map->world (vector 1100 1500 0)))
+   (translate (vector 0 3 0))
+   (scale (vector -12 16 1))
+   (shader-assign-compiled "person")
+   (texture (load-texture "tree-1.png"))
+   (load-primitive "models/plane.obj"))
+
+
   ;; draw the map into a context so we can read pixels
   ;; out of it...
   ;; need to load it from static data due to cross origin rules
