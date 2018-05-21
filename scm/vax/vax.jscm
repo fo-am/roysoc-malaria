@@ -24,19 +24,13 @@
 
 (define (hex->col r g b) (vector (/ r 255) (/ g 255) (/ b 255)))
 
-;d2e049 ff yellow
-;444545 ff grey
-;7be0ad ff green
-;0081af ff blue
-;f61067 ff pink
-; 85 6d 9b b6
-
 (define receptor-a-col (hex->col 0xd2 0xe0 0x49))
 (define receptor-b-col (hex->col 0x44 0x45 0x45))
 (define receptor-c-col (hex->col 0x7b 0xe0 0xad))
 (define receptor-d-col (hex->col 0x00 0x81 0xaf))
 (define receptor-e-col (hex->col 0xf6 0x10 0x67))
-(define receptor-f-col (hex->col 0xf7 0x92 0x56))
+;;(define receptor-f-col (hex->col 0xf7 0x92 0x56))
+(define receptor-f-col (hex->col 0xf7 0xd0 0x8a))
 
 (define (type->col type)
   (cond 

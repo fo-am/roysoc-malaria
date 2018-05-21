@@ -117,19 +117,13 @@ ret\n\
 \n\
 (define (hex->col r g b) (vector (/ r 255) (/ g 255) (/ b 255)))\n\
 \n\
-;d2e049 ff yellow\n\
-;444545 ff grey\n\
-;7be0ad ff green\n\
-;0081af ff blue\n\
-;f61067 ff pink\n\
-; 85 6d 9b b6\n\
-\n\
 (define receptor-a-col (hex->col 0xd2 0xe0 0x49))\n\
 (define receptor-b-col (hex->col 0x44 0x45 0x45))\n\
 (define receptor-c-col (hex->col 0x7b 0xe0 0xad))\n\
 (define receptor-d-col (hex->col 0x00 0x81 0xaf))\n\
 (define receptor-e-col (hex->col 0xf6 0x10 0x67))\n\
-(define receptor-f-col (hex->col 0xf7 0x92 0x56))\n\
+;;(define receptor-f-col (hex->col 0xf7 0x92 0x56))\n\
+(define receptor-f-col (hex->col 0xf7 0xd0 0x8a))\n\
 \n\
 (define (type->col type)\n\
   (cond \n\
