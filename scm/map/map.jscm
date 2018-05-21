@@ -143,6 +143,9 @@
 			 (hex->col 0xf1 0xc2 0x7d)
 			 (hex->col 0xff 0xdb 0xac)))
 
+(define (person-z p)
+  (vz (mtransform (with-primitive (person-root p) (get-transform)) (vector 0 0 0))))
+
 (define (build-person zone-id pos)
   (make-person
    pos
@@ -191,9 +194,20 @@
 	       people))))))
   
 (define (build-population num zone-id exclusion-ctx zones-ctx)
-  (build-list 
-   num (lambda (i) 
-	 (build-person zone-id (generate-map-pos zone-id exclusion-ctx zones-ctx)))))
+  (let ((positions 
+	 (build-list 
+	  num (lambda (i) 
+		(generate-map-pos zone-id exclusion-ctx zones-ctx)))))
+    ;; depth sort for transparency optimisation...
+    (positions.sort 
+     (lambda (a b) 
+       (cond ((< (vy a) (vy b)) -1)
+	     ((> (vy a) (vy b)) 1)
+	     (else 0))))
+    (map 
+     (lambda (pos) 
+       (build-person zone-id pos))
+     positions)))
 
 
 (define (build-stack id x y name)
@@ -243,6 +257,9 @@
 (shader-compile "person" (list "p" "n" "t" "c")
 		"shaders/person.vert"
 		"shaders/person.frag")
+(shader-compile "tree" (list "p" "n" "t" "c")
+		"shaders/tree.vert"
+		"shaders/tree.frag")
 
 (load-texture "map-exclusion.png")
 (load-texture "map-zones.png")
@@ -319,6 +336,7 @@
   (resize-glcanvas webgl-canvas)
   (canvas-setup)
   (resize-canvas canvas)
+  (set-framerate-divide! 3)
   
   (set! total-stack (make-coin-stack 50 (- screen-height 120) "coin.png" "Budget" start-budget))
   (set! supervax-toggle (make-toggle-button 150 (- screen-height 40) "toggle.png" "tick.png" "Max Vax" #f))
@@ -330,7 +348,7 @@
    (translate (map->world (vector 900 900 0)))
    (translate (vector 0 3 0))
    (scale (vector 12 16 1))
-   (shader-assign-compiled "person")
+   (shader-assign-compiled "tree")
    (texture (load-texture "tree-1.png"))
    (load-primitive "models/plane.obj"))
 
@@ -338,7 +356,7 @@
    (translate (map->world (vector 1100 1000 0)))
    (translate (vector 0 3 0))
    (scale (vector 16 16 1))
-   (shader-assign-compiled "person")
+   (shader-assign-compiled "tree")
    (texture (load-texture "tree-4.png"))
    (load-primitive "models/plane.obj"))
 
@@ -346,7 +364,7 @@
    (translate (map->world (vector 1700 1000 0)))
    (translate (vector 0 3 0))
    (scale (vector 16 16 1))
-   (shader-assign-compiled "person")
+   (shader-assign-compiled "tree")
    (texture (load-texture "tree-6.png"))
    (load-primitive "models/plane.obj"))
 
@@ -354,7 +372,7 @@
    (translate (map->world (vector 1850 1100 0)))
    (translate (vector 0 3 0))
    (scale (vector 16 21 1))
-   (shader-assign-compiled "person")
+   (shader-assign-compiled "tree")
    (texture (load-texture "tree-5.png"))
    (load-primitive "models/plane.obj"))
 	
@@ -362,7 +380,7 @@
    (translate (map->world (vector 1950 1200 0)))
    (translate (vector 0 3 0))
    (scale (vector -14 14 1))
-   (shader-assign-compiled "person")
+   (shader-assign-compiled "tree")
    (texture (load-texture "tree-6.png"))
    (load-primitive "models/plane.obj"))
 	
@@ -370,7 +388,7 @@
    (translate (map->world (vector 2000 1400 0)))
    (translate (vector 0 3 0))
    (scale (vector -16 16 1))
-   (shader-assign-compiled "person")
+   (shader-assign-compiled "tree")
    (texture (load-texture "tree-4.png"))
    (load-primitive "models/plane.obj"))
 
@@ -378,7 +396,7 @@
    (translate (map->world (vector 1100 1500 0)))
    (translate (vector 0 3 0))
    (scale (vector -12 16 1))
-   (shader-assign-compiled "person")
+   (shader-assign-compiled "tree")
    (texture (load-texture "tree-1.png"))
    (load-primitive "models/plane.obj"))
 

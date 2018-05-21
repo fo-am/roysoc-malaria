@@ -13,9 +13,9 @@ void main() {
     float diffuse = dot(vec3(0,0,1),n);
     float alpha = texture2D(texture, vec2(T.s, T.t)).a;
 
-    if(alpha < 0.1) {
+    /*    if(alpha < 0.1) {
       discard;
-    }
+      }*/
 
     vec3 col = texture2D(texture, vec2(T.s, T.t)).xyz;
 

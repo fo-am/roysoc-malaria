@@ -102,6 +102,8 @@ resources = [
     "shaders/default.frag",
     "shaders/person.vert",
     "shaders/person.frag",
+    "shaders/tree.vert",
+    "shaders/tree.frag",
 
     "textures/white.png",
     "textures/map-exclusion.png",
