@@ -449,4 +449,3 @@
 (ctx.fillText "Loading..." 100 100)
 
 (every-frame (start))
-	 

@@ -100,7 +100,7 @@
        (anim-state-infected a)
        (anim-state-loop a) 
        (anim-state-frame a) 
-       (+ (anim-state-time a) canvas-delta))
+       (+ (anim-state-time a) (* canvas-delta 2)))
       (let ((current-loops (list-ref loops (anim-state-infected a))))
 	(cond
 	 ((zero? (anim-state-loop a)) ;; we are in the standing pose...
