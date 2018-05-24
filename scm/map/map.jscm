@@ -16,9 +16,9 @@
 (define high-pop-num 60)
 (define low-pop-num 10)
 
-(define max-budget 30) 
+(define max-budget 45) 
 
-(define bednet-cost 0.2)
+(define bednet-cost 1)
 (define drug-cost 50)
 (define badvax-cost 80)
 (define goodvax-cost 1)
