@@ -7,7 +7,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; useful constants for tweaking
 
-(define dollars-per-coin 1)
+(define dollars-per-coin 8)
 (define global-risk-multiplier 1)
 
 (define transmission-low 4)
@@ -16,7 +16,7 @@
 (define high-pop-num 60)
 (define low-pop-num 10)
 
-(define max-budget 45) 
+(define max-budget 22) 
 
 (define bednet-cost 1)
 (define drug-cost 50)
@@ -38,6 +38,8 @@
 ;; in coins
 (define (make-budget vax drugs bednets)
   (list vax drugs bednets))
+(define (empty-budget)
+  (list 0 0 0))
 (define (budget-vax b) (list-ref b 0))
 (define (budget-drugs b) (list-ref b 1))
 (define (budget-bednets b) (list-ref b 2))
@@ -47,6 +49,9 @@
 
 (define (budget-amount b id)
   (list-ref b id))
+
+(define (budget-divide budget zones-active)
+  (map (lambda (v) (/ v zones-active)) budget))
 
 ;; the model
 (define (model-risk params transmission)
@@ -178,21 +183,25 @@
       (person-update-anim-state p anim-state))))
     
 (define (update-people!)
-  (let ((supervax (toggle-button-state supervax-toggle)))
-    (let ((low-pop-params (budget->params budget low-pop-num supervax))
-	  (high-pop-params (budget->params budget high-pop-num supervax)))
+  (let ((supervax (toggle-button-state supervax-toggle))
+	(all-active (not (zones-selected?)))
+	(budget (budget-divide budget (count-zones-active))))
+    (let ((volcano-params (budget->params (if (or all-active zone-volcano-on) budget (empty-budget)) high-pop-num supervax))
+	  (desert-params (budget->params (if (or all-active zone-desert-on) budget (empty-budget)) low-pop-num supervax))
+	  (lakes-params (budget->params (if (or all-active zone-lakes-on) budget (empty-budget)) high-pop-num supervax))
+	  (forest-params (budget->params (if (or all-active zone-forest-on) budget (empty-budget)) low-pop-num supervax)))
       (let ((risk
 	     (list
-	      (model-risk high-pop-params transmission-low) ;; volcanoes
-	      (model-risk low-pop-params transmission-low) ;; desert
-	      (model-risk high-pop-params transmission-high) ;; lakes
-	      (model-risk low-pop-params transmission-high)))) ;; forest	    
+	      (model-risk volcano-params transmission-low) ;; volcanoes
+	      (model-risk desert-params transmission-low) ;; desert
+	      (model-risk lakes-params transmission-high) ;; lakes
+	      (model-risk forest-params transmission-high)))) ;; forest	    
 	(set! people
 	      (map
 	       (lambda (p)
 		 (update-person p (list-ref risk (person-zone-id p))))
 	       people))))))
-  
+
 (define (build-population num zone-id exclusion-ctx zones-ctx)
   (let ((positions 
 	 (build-list 
@@ -283,6 +292,10 @@
   "minus.png"
   "toggle.png"
   "tick.png"
+  "zone-volcano.png"
+  "zone-desert.png"
+  "zone-forest.png"
+  "zone-lakes.png"
   )
  (lambda ()
    0))
@@ -306,20 +319,81 @@
   (image-button-render! (list-ref s 1))
   (image-button-render! (list-ref s 2)))
 
+(define zone-volcano-on #f)
+(define zone-lakes-on #f)
+(define zone-desert-on #f)
+(define zone-forest-on #f)
+
+(define (zones-selected?)
+  (or zone-volcano-on
+      zone-lakes-on
+      zone-desert-on 
+      zone-forest-on))
+
+(define (count-zones-active)
+  (if (and (not zone-volcano-on)
+	   (not zone-lakes-on)
+	   (not zone-desert-on) 
+	   (not zone-forest-on))
+      4
+      (+ (if zone-volcano-on 1 0)
+	 (if zone-lakes-on 1 0)
+	 (if zone-desert-on 1 0)
+	 (if zone-forest-on 1 0))))
+  
 (define (render-canvas)
+  (when (zones-selected?)
+	(zone-ctx.clearRect 0 0 screen-width screen-height)
+	(set! zone-ctx.fillStyle "#000")
+	(zone-ctx.fillRect 0 0 screen-width screen-height)
+	;;(set! zone-ctx.globalCompositeOperation "source-out")
+	(when zone-volcano-on
+	      (zone-ctx.drawImage (find-image "zone-volcano.png" image-lib) 
+				  0 0))
+	(when zone-lakes-on
+	      (zone-ctx.drawImage (find-image "zone-lakes.png" image-lib) 
+				  0 0))
+	(when zone-desert-on
+	      (zone-ctx.drawImage (find-image "zone-desert.png" image-lib) 
+				  0 0))
+	(when zone-forest-on
+	      (zone-ctx.drawImage (find-image "zone-forest.png" image-lib) 
+				  0 0))
+	
+	(set! ctx.globalCompositeOperation "source-over")
+	
+	(set! ctx.globalAlpha 0.5)
+	;;(set! ctx.globalCompositeOperation "darken")
+	(ctx.drawImage zone-canvas 0 0)
+	;;(set! ctx.globalCompositeOperation "source-over")
+	(set! ctx.globalAlpha 1))
+
   (render-stack! vax-stack)
   (render-stack! drugs-stack)
   (render-stack! bednets-stack)
   (coin-stack-render! total-stack)
   (set! supervax-toggle (toggle-button-update supervax-toggle))
-  (toggle-button-render! supervax-toggle))
+  (toggle-button-render! supervax-toggle)
+
+  ;;(rect-button-render! volcano-button)
+  ;;(rect-button-render! desert-button)
+  ;;(rect-button-render! forest-button)
+  ;;(rect-button-render! lakes-button)
+
+  (rect-button-update volcano-button)
+  (rect-button-update desert-button)
+  (rect-button-update forest-button)
+  (rect-button-update lakes-button)
+
+    
+  )
 
 (define people-frame-time 0)
 
 (define (render-game)
   (canvas-update-time)
-  (resize-glcanvas webgl-canvas)
-  (resize-canvas canvas)
+  ;;(resize-glcanvas webgl-canvas)
+  ;;(resize-canvas canvas)
   
   (ctx.clearRect 0 0 screen-width screen-height)	  
   (render-canvas)  
@@ -333,9 +407,10 @@
 
 (define (run-init)
   (ortho 20)
-  (resize-glcanvas webgl-canvas)
+  (size-glcanvas webgl-canvas screen-width screen-height)   
+  ;;(resize-glcanvas webgl-canvas)
   (canvas-setup)
-  (resize-canvas canvas)
+  ;;(resize-canvas canvas)
   (set-framerate-divide! 3)
   
   (set! total-stack (make-coin-stack 50 (- screen-height 120) "coin.png" "Budget" start-budget))
@@ -343,6 +418,27 @@
   (set! vax-stack (build-stack 0 250 (- screen-height 120) "Vaccination"))
   (set! drugs-stack (build-stack 1 400 (- screen-height 120) "Drugs"))
   (set! bednets-stack (build-stack 2 550 (- screen-height 120) "Bednets"))
+
+  (set! volcano-button 
+	(make-rect-button 
+	 350 20 650 450 
+	 (lambda (c) 
+	   (set! zone-volcano-on (not zone-volcano-on)) c)))
+  (set! desert-button 
+	(make-rect-button 
+	 1000 20 650 450 
+	 (lambda (c) 
+	   (set! zone-desert-on (not zone-desert-on)) c)))
+  (set! forest-button 
+	(make-rect-button 
+	 350 470 650 450 
+	 (lambda (c) 
+	   (set! zone-forest-on (not zone-forest-on)) c)))
+  (set! lakes-button 
+	(make-rect-button 
+	 1000 470 650 450 
+	 (lambda (c) 
+	   (set! zone-lakes-on (not zone-lakes-on)) c)))
   
   (with-state
    (translate (map->world (vector 900 900 0)))
@@ -444,8 +540,18 @@
 	 (run-init)	 
 	 (every-frame render-game)))
 
-(resize-canvas canvas)
+;;(resize-canvas canvas)
 (set! ctx.font "20pt Amatic")
 (ctx.fillText "Loading..." 100 100)
+
+(set! screen-width 1920)
+(set! screen-height 1080)
+(canvas-init-defaults)
+(set! zone-canvas (document.createElement "canvas"))
+(set! zone-canvas.width screen-width)
+(set! zone-canvas.height screen-height)
+(set! zone-ctx (zone-canvas.getContext "2d")) 
+
+(set! window.onresize (lambda () 0))
 
 (every-frame (start))
