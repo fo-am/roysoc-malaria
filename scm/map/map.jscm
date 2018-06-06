@@ -292,10 +292,22 @@
   "minus.png"
   "toggle.png"
   "tick.png"
-  "zone-volcano.png"
-  "zone-desert.png"
-  "zone-forest.png"
-  "zone-lakes.png"
+  "zones-0001.png"
+  "zones-0010.png"
+  "zones-0011.png"
+  "zones-0100.png"
+  "zones-0101.png"
+  "zones-0110.png"
+  "zones-0111.png"
+  "zones-1000.png"
+  "zones-1001.png"
+  "zones-1010.png"
+  "zones-1011.png"
+  "zones-1100.png"
+  "zones-1101.png"
+  "zones-1110.png"
+  "zones-1111.png"
+  "zones-1100.png"
   )
  (lambda ()
    0))
@@ -330,6 +342,12 @@
       zone-desert-on 
       zone-forest-on))
 
+(define (all-zones-selected?)
+  (and zone-volcano-on
+       zone-lakes-on
+       zone-desert-on 
+       zone-forest-on))
+
 (define (count-zones-active)
   (if (and (not zone-volcano-on)
 	   (not zone-lakes-on)
@@ -340,32 +358,19 @@
 	 (if zone-lakes-on 1 0)
 	 (if zone-desert-on 1 0)
 	 (if zone-forest-on 1 0))))
-  
+
+(define (zone-image)
+  (string-append "zones-" 
+		 (if zone-forest-on "0" "1")
+		 (if zone-lakes-on "0" "1")
+		 (if zone-desert-on "0" "1")
+		 (if zone-volcano-on "0" "1")  
+		 ".png"))
+
 (define (render-canvas)
-  (when (zones-selected?)
-	(zone-ctx.clearRect 0 0 screen-width screen-height)
-	(set! zone-ctx.fillStyle "#000")
-	(zone-ctx.fillRect 0 0 screen-width screen-height)
-	;;(set! zone-ctx.globalCompositeOperation "source-out")
-	(when zone-volcano-on
-	      (zone-ctx.drawImage (find-image "zone-volcano.png" image-lib) 
-				  0 0))
-	(when zone-lakes-on
-	      (zone-ctx.drawImage (find-image "zone-lakes.png" image-lib) 
-				  0 0))
-	(when zone-desert-on
-	      (zone-ctx.drawImage (find-image "zone-desert.png" image-lib) 
-				  0 0))
-	(when zone-forest-on
-	      (zone-ctx.drawImage (find-image "zone-forest.png" image-lib) 
-				  0 0))
-	
-	(set! ctx.globalCompositeOperation "source-over")
-	
-	(set! ctx.globalAlpha 0.5)
-	;;(set! ctx.globalCompositeOperation "darken")
-	(ctx.drawImage zone-canvas 0 0)
-	;;(set! ctx.globalCompositeOperation "source-over")
+  (when (and (zones-selected?) (not (all-zones-selected?)))
+	(set! ctx.globalAlpha 0.6)
+	(ctx.drawImage (find-image (zone-image) image-lib) 0 0)
 	(set! ctx.globalAlpha 1))
 
   (render-stack! vax-stack)
