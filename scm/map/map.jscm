@@ -19,8 +19,8 @@
 (define max-budget 22) 
 
 (define bednet-cost 1)
-(define drug-cost 50)
-(define badvax-cost 80)
+(define drug-cost 25)
+(define badvax-cost 10)
 (define goodvax-cost 1)
 
 (define badvax-p-multiplier 0.3)
