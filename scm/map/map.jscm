@@ -421,7 +421,7 @@
   (set! total-stack (make-coin-stack 50 (- screen-height 150) "coin.png" "Budget" start-budget))
   (set! supervax-toggle (make-toggle-button 200 (- screen-height 45) "toggle.png" "tick.png" "Max Vax" #f))
   (set! vax-stack (build-stack 0 320 (- screen-height 150) "Vaccination"))
-  (set! drugs-stack (build-stack 1 480 (- screen-height 150) "Drugs"))
+  (set! drugs-stack (build-stack 1 480 (- screen-height 150) "Medicines"))
   (set! bednets-stack (build-stack 2 650 (- screen-height 150) "Bednets"))
 
   (set! volcano-button 
