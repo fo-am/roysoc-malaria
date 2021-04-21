@@ -808,7 +808,7 @@
     ((eq? type "D") "vial-d.png")
     ((eq? type "E") "vial-e.png")
     (else "vial-f.png"))
-   "" 
+   "" ""
    (lambda (x) 
      (when (and (not reset-game) 
 		(not (eq? (animated-button-state syringe-button) "filling")))

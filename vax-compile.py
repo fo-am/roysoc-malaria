@@ -46,6 +46,7 @@ resources = [
     "shaders/title.vert",
     "shaders/title.frag",
 
+    
     "textures/white.png",
     "textures/circle-trans.png",
     "textures/noise.png",
